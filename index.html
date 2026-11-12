@@ -1,0 +1,4204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>找房雷达 · 真实房源热力图</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700;800&display=swap" />
+<style>
+  :root{
+    --bg:#efece6;
+    --panel:#fbfaf7;
+    --card:#ffffff;
+    --ink:#1b1e23;
+    --muted:#767b84;
+    --line:#e4e0d7;
+    --line-soft:#eeeae2;
+    --accent:#0f766e;
+    --accent-deep:#0b3b36;
+    --good:#15803d;
+    --warn:#b45309;
+    --bad:#b91c1c;
+    --shadow-sm:0 1px 2px rgba(28,26,22,.05);
+    --shadow-md:0 10px 30px rgba(28,26,22,.10);
+    --shadow-lg:0 24px 70px rgba(23,22,20,.20);
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit;font-size:13.5px;color:var(--ink)}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  h1,h2,h3,p{margin:0}
+  ::selection{background:#cdeee6}
+
+  .app{display:grid;grid-template-columns:400px minmax(0,1fr);height:100dvh;overflow:hidden}
+
+  /* ---------- sidebar ---------- */
+  .side{
+    display:flex;flex-direction:column;min-height:0;
+    background:var(--panel);border-right:1px solid var(--line);
+    position:relative;z-index:20;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:15px 18px 12px}
+  .logo{
+    width:40px;height:40px;border-radius:13px;flex:none;
+    background:radial-gradient(120% 120% at 20% 10%,#1c5f55 0%,#0b2e2a 70%);
+    display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);
+  }
+  .logo svg{width:23px;height:23px}
+  .brand h1{font-size:16.5px;font-weight:650;letter-spacing:.01em}
+  .brand p{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .brand .icon-btn{margin-left:auto}
+
+  .icon-btn{
+    width:32px;height:32px;border-radius:10px;border:1px solid transparent;background:transparent;
+    display:grid;place-items:center;color:var(--muted);flex:none;
+  }
+  .icon-btn:hover{background:#f0ede6;color:var(--ink);border-color:var(--line-soft)}
+  .icon-btn svg{width:17px;height:17px}
+
+  .loc{
+    margin:0 14px 9px;padding:10px 11px;border:1px solid var(--line);border-radius:12px;
+    background:#fff;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow-sm);
+  }
+  .loc-pin{
+    width:26px;height:26px;border-radius:8px;background:#e7f4f0;color:var(--accent);
+    display:grid;place-items:center;flex:none;
+  }
+  .loc-pin svg{width:15px;height:15px}
+  .loc-txt{min-width:0;flex:1}
+  .loc-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .loc-sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+  .mini-btn{
+    border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 9px;font-size:12px;
+    color:#424750;transition:.15s;white-space:nowrap;
+  }
+  .mini-btn:hover{border-color:#c9c3b6;background:#faf8f3}
+
+  .stats{
+    margin:0 14px 8px;font-size:11.5px;color:var(--muted);
+    display:flex;flex-wrap:wrap;gap:2px 10px;padding:0 2px;
+  }
+  .stats b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+  .stats .g{color:var(--good)}
+  .stats .w{color:var(--warn)}
+  .stats .b{color:var(--bad)}
+
+  .filters{padding:0 14px 9px}
+  .frow{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  .frow > label,.frow > .f-lab{font-size:11.5px;color:var(--muted);width:30px;flex:none}
+  .range{display:flex;align-items:center;gap:5px;flex:1}
+  .range input{
+    width:100%;min-width:0;border:1px solid var(--line);background:#fff;border-radius:8px;
+    padding:6px 8px;font-size:12.5px;outline:none;
+  }
+  .range input:focus,.field input:focus,.field textarea:focus,.field select:focus,#sKeyword:focus,#sKey:focus,#sCity:focus{
+    border-color:#8fc7bb;box-shadow:0 0 0 3px rgba(15,118,110,.10);
+  }
+  .range .sep{color:#b9b3a6;font-size:11px}
+  .range .unit{font-size:11px;color:var(--muted);flex:none}
+  .seg{display:flex;gap:3px;background:#efebe3;border-radius:9px;padding:3px;flex:1}
+  .seg button{
+    flex:1;border:0;background:transparent;border-radius:7px;padding:5px 4px;font-size:11.5px;
+    color:#5c6169;transition:.15s;white-space:nowrap;
+  }
+  .seg button.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+  .toggles{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 9px;border-bottom:1px solid var(--line-soft)}
+  .switch{
+    display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;
+    border-radius:8px;padding:5px 9px;font-size:11.5px;color:#5c6169;flex:1 1 auto;justify-content:center;
+  }
+  .switch i{
+    width:22px;height:13px;border-radius:20px;background:#d8d2c6;position:relative;transition:.18s;flex:none;
+  }
+  .switch i::after{
+    content:"";position:absolute;top:1.5px;left:1.5px;width:10px;height:10px;border-radius:50%;
+    background:#fff;transition:.18s;box-shadow:0 1px 2px rgba(0,0,0,.2);
+  }
+  .switch.on{color:var(--accent-deep);border-color:#c7e3db;background:#f4fbf8}
+  .switch.on i{background:var(--accent)}
+  .switch.on i::after{left:10.5px}
+  select#fSort{
+    flex:1;border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 8px;font-size:12px;outline:none;
+  }
+
+  .quick{padding:11px 14px 12px;border-bottom:1px solid var(--line-soft)}
+  .q-title{font-size:11.5px;color:var(--muted);display:flex;align-items:baseline;gap:5px;margin-bottom:7px}
+  .q-title span{font-size:10.5px;color:#a49d8e}
+  .q-links{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+  .q-link{
+    display:flex;align-items:center;justify-content:center;gap:4px;border:1px solid var(--line);background:#fff;border-radius:8px;
+    padding:6px 3px;font-size:11px;color:#3d4249;transition:.15s;white-space:nowrap;
+  }
+  .q-link:hover{border-color:#c7e3db;background:#f6fcf9;text-decoration:none;color:var(--accent-deep)}
+  .q-link .d{width:5px;height:5px;border-radius:50%;flex:none}
+  .q-note{font-size:10.5px;color:#a49d8e;margin-top:6px;line-height:1.4}
+
+  .list-head{
+    display:flex;align-items:center;justify-content:space-between;padding:11px 16px 6px;
+    font-size:11.5px;color:var(--muted);
+  }
+  .list-actions{display:flex;gap:8px}
+  .link-btn{border:0;background:none;padding:0;font-size:11.5px;color:var(--accent);}
+  .link-btn:hover{text-decoration:underline}
+  .link-btn.danger{color:#a8a29a}
+  .only-mobile{display:none}
+  .filter-collapse{display:none}
+
+  .list{flex:1;min-height:0;overflow-y:auto;padding:4px 12px 14px;scrollbar-width:thin}
+  .list::-webkit-scrollbar{width:8px}
+  .list::-webkit-scrollbar-thumb{background:#dcd6ca;border-radius:8px;border:2px solid var(--panel)}
+
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:11px 12px 10px;
+    margin-bottom:8px;box-shadow:var(--shadow-sm);transition:.16s;cursor:pointer;position:relative;
+  }
+  .card:hover{border-color:#cdc7ba;box-shadow:0 6px 18px rgba(30,28,24,.08);transform:translateY(-1px)}
+  .card.sample{border-style:dashed;background:#fffdf8}
+  .card.bait{border-color:#f0b4ae;background:#fffafa}
+  .card-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:3px}
+  .price{font-size:19px;font-weight:680;letter-spacing:-.01em;color:var(--accent-deep);font-variant-numeric:tabular-nums;line-height:1.1;white-space:nowrap;flex:none}
+  .price span{font-size:11px;font-weight:400;color:var(--muted);margin-left:1px}
+  .price .cur{font-size:12px;font-weight:500;margin-right:1px}
+  .chips{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;padding-top:2px}
+  .chip{
+    font-size:10px;line-height:1;padding:4px 5.5px;border-radius:5px;white-space:nowrap;font-weight:600;
+    border:1px solid transparent;
+  }
+  .chip.good{color:var(--good);background:#eaf7ee;border-color:#cfe9d8}
+  .chip.warn{color:var(--warn);background:#fdf3e3;border-color:#f3e0c1}
+  .chip.bad{color:var(--bad);background:#fdeceb;border-color:#f5d2cf}
+  .chip.dup{color:#6b7280;background:#f2f0eb;border-color:#e5e1d7}
+  .chip.info{color:#0f766e;background:#e7f4f0;border-color:#c7e3db}
+  .chip.sample{color:#8a6d3b;background:#fbf4e6;border-color:#ece0c8}
+  .chip.star{color:#a16207;background:#fdf7e7;border-color:#efe2bd}
+  button.chip{font-family:inherit;line-height:1;cursor:pointer}
+  button.chip.cmp:hover{background:#e9e6de}
+  button.chip.bad:hover{background:#fbdcd9}
+
+  .card h3{font-size:13.5px;font-weight:600;line-height:1.4;margin:2px 0 4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .meta{font-size:11.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:0 6px;margin-bottom:3px}
+  .meta .dot{color:#cfc8ba}
+  .card-foot{display:flex;align-items:center;gap:6px;margin-top:7px;padding-top:7px;border-top:1px dashed var(--line-soft)}
+  .up{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .card-btns{margin-left:auto;display:flex;gap:2px;align-items:center}
+  .card-btns button,.card-btns a{
+    border:0;background:none;font-size:11.5px;color:#6f757e;padding:3px 5px;border-radius:6px;line-height:1.2;
+  }
+  .card-btns button:hover,.card-btns a:hover{background:#f1eee7;color:var(--ink);text-decoration:none}
+  .card-btns .on{color:#a16207}
+  .empty{padding:34px 18px;text-align:center;color:#9a9488;font-size:12.5px;line-height:1.7}
+  .empty b{display:block;color:#5c6169;font-size:13px;margin-bottom:4px}
+
+  .side-foot{
+    display:flex;gap:7px;padding:10px 14px calc(12px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--line);background:var(--panel);
+  }
+  .primary{
+    background:var(--accent-deep);color:#fff;border:1px solid var(--accent-deep);border-radius:10px;
+    padding:9px 14px;font-size:13px;font-weight:600;transition:.15s;box-shadow:0 4px 12px rgba(11,59,54,.18);
+  }
+  .primary:hover{background:#0e4b44;border-color:#0e4b44}
+  .side-foot .primary{flex:1}
+  .ghost{
+    background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px;
+    transition:.15s;color:#4b5058;
+  }
+  .ghost:hover{background:#f7f4ee;border-color:#cdc7ba}
+
+  /* ---------- map ---------- */
+  .map-wrap{position:relative;min-width:0;background:#e8e5df}
+  #map{position:absolute;inset:0;z-index:1;background:#e8e5df}
+  .map-top{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:400;display:flex;gap:8px}
+  .layers{
+    display:flex;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);border-radius:11px;
+    padding:3px;box-shadow:var(--shadow-md);border:1px solid rgba(0,0,0,.05);width:auto;flex:none;
+  }
+  .layers button{flex:none;padding:6px 11px;font-size:12px;color:#5b6068}
+  .layers button.on{background:var(--accent-deep);color:#fff}
+
+  .legend{
+    position:absolute;left:16px;bottom:16px;z-index:400;background:rgba(255,255,255,.94);
+    backdrop-filter:blur(10px);border:1px solid rgba(0,0,0,.05);border-radius:12px;padding:10px 12px;
+    box-shadow:var(--shadow-md);font-size:10.5px;color:#5f646b;max-width:230px;
+  }
+  .legend .bar{height:7px;border-radius:5px;margin:6px 0 4px;background:linear-gradient(90deg,#1d4ed8,#06b6d4 30%,#22c55e 52%,#f59e0b 76%,#ef4444)}
+  .legend .row{display:flex;justify-content:space-between;color:#9a9488}
+  .legend .dots{display:flex;gap:10px;margin-top:8px;padding-top:7px;border-top:1px solid #eee9df}
+  .legend .dots span{display:flex;align-items:center;gap:4px}
+  .legend .dots i{width:7px;height:7px;border-radius:50%}
+  .legend .src{margin-top:7px;color:#a8a294;font-size:10px;line-height:1.4}
+  .legend .switch{flex:none;width:100%;margin-top:8px;padding:4px 7px;font-size:10.5px;justify-content:flex-start;gap:5px}
+  .legend .switch i{width:18px;height:11px}
+  .legend .switch i::after{width:8px;height:8px}
+  .legend .switch.on i::after{left:9.5px}
+
+  .alert-strip{
+    position:absolute;right:16px;top:64px;z-index:410;display:flex;align-items:center;gap:9px;
+    max-width:min(360px,calc(100% - 32px));background:#fff8f6;border:1px solid #f0c1ba;border-radius:12px;
+    padding:9px 11px;box-shadow:var(--shadow-md);font-size:11.5px;color:#8f2f24;line-height:1.4;
+  }
+  .alert-strip[hidden]{display:none}
+  .alert-strip .mini-btn{flex:none;border-color:#f0c1ba;color:#b91c1c;background:#fff}
+
+  .ring-label{
+    background:rgba(255,255,255,.9);border:1px solid #d8d2c6;border-radius:4px;font-size:9.5px;
+    color:#7c766a;padding:0 4px;white-space:nowrap;line-height:1.5;transform:translate(-50%,-50%);
+  }
+
+  .banner{
+    position:absolute;left:50%;transform:translateX(-50%);top:58px;z-index:420;max-width:min(560px,calc(100% - 32px));
+    background:#1f2522;color:#f3f1ea;border-radius:12px;padding:10px 34px 10px 13px;font-size:12px;line-height:1.55;
+    box-shadow:var(--shadow-lg);display:flex;gap:8px;align-items:flex-start;
+  }
+  .banner[hidden]{display:none}
+  .banner code{background:rgba(255,255,255,.12);padding:1px 5px;border-radius:4px;font-size:11px;word-break:break-all}
+  .banner .x{
+    position:absolute;right:6px;top:5px;border:0;background:none;color:#a9a69c;font-size:15px;padding:4px 6px;line-height:1;
+  }
+  .banner .x:hover{color:#fff}
+  .pick-banner{
+    position:absolute;left:50%;transform:translateX(-50%);bottom:22px;z-index:430;
+    background:#0b3b36;color:#dff5ee;padding:9px 15px;border-radius:99px;font-size:12px;
+    box-shadow:var(--shadow-lg);display:none;align-items:center;gap:8px;
+  }
+  .pick-banner.show{display:flex}
+  .pick-banner b{font-weight:600;color:#fff}
+
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translate(-50%,16px);z-index:2000;
+    background:#1f2522;color:#fff;font-size:12.5px;padding:9px 15px;border-radius:10px;
+    box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:.22s;max-width:min(520px,90vw);text-align:center;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  /* ---------- leaflet skin ---------- */
+  .leaflet-container{font-family:inherit;font-size:12px}
+  .leaflet-control-zoom{border:0!important;box-shadow:var(--shadow-md)!important;border-radius:10px!important;overflow:hidden}
+  .leaflet-control-zoom a{width:32px!important;height:32px!important;line-height:31px!important;color:#3f444b!important;background:#fff!important;border-bottom:1px solid #eeeae2!important}
+  .leaflet-control-zoom a:hover{background:#f7f4ee!important}
+  .leaflet-control-attribution{background:rgba(255,255,255,.78)!important;font-size:9.5px!important;color:#8a857b!important;border-radius:6px 0 0 0;padding:1px 6px!important}
+  .leaflet-popup-content-wrapper{border-radius:13px;box-shadow:0 14px 40px rgba(0,0,0,.18);padding:2px}
+  .leaflet-popup-content{margin:11px 13px;min-width:190px;max-width:250px;line-height:1.45}
+  .leaflet-popup-tip{box-shadow:0 2px 6px rgba(0,0,0,.1)}
+  .pop-price{font-size:18px;font-weight:700;color:#0b3b36;font-variant-numeric:tabular-nums}
+  .pop-price span{font-size:10px;font-weight:400;color:#8a857b;margin-left:2px}
+  .pop-title{font-size:12.5px;font-weight:600;margin:2px 0 3px;line-height:1.4}
+  .pop-meta{font-size:11px;color:#7c8189;margin-bottom:6px}
+  .pop-chips{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+  .pop-link{font-size:11.5px;font-weight:600;display:inline-block;margin-top:1px}
+  .home-marker{width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid #0f766e;box-shadow:0 0 0 4px rgba(15,118,110,.20),0 2px 8px rgba(0,0,0,.25)}
+  .home-marker::after{content:"";position:absolute;inset:3px;border-radius:50%;background:#0f766e}
+
+  /* ---------- drawer ---------- */
+  .scrim{
+    position:fixed;inset:0;background:rgba(24,22,18,.28);z-index:1100;opacity:0;pointer-events:none;transition:.22s;
+    backdrop-filter:blur(1px);
+  }
+  .scrim.on{opacity:1;pointer-events:auto}
+
+  .drawer{
+    position:fixed;top:0;right:0;height:100dvh;width:432px;max-width:100%;
+    background:#fdfcf9;z-index:1200;display:flex;flex-direction:column;
+    transform:translateX(103%);transition:transform .26s cubic-bezier(.3,.9,.3,1);
+    box-shadow:-20px 0 60px rgba(20,20,18,.22);border-left:1px solid var(--line);
+  }
+  .drawer.open{transform:translateX(0)}
+  .drawer-head{display:flex;align-items:center;padding:16px 18px 12px;border-bottom:1px solid var(--line-soft)}
+  .drawer-head h2{font-size:15px;font-weight:650}
+  .drawer-head .icon-btn{margin-left:auto}
+  .drawer-body{flex:1;min-height:0;overflow-y:auto;padding:14px 18px 18px}
+  .paste{background:#f5f2ea;border:1px solid #e9e4d9;border-radius:12px;padding:10px;margin-bottom:14px}
+  .paste label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px}
+  .paste textarea{
+    width:100%;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 9px;resize:vertical;
+    outline:none;line-height:1.5;font-size:12.5px;
+  }
+  .paste .mini-btn{margin-top:6px}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field.full{grid-column:1/-1}
+  .field > span{font-size:11.5px;color:var(--muted)}
+  .field input,.field select,.field textarea{
+    border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 9px;outline:none;width:100%;
+  }
+  .field textarea{resize:vertical;line-height:1.5}
+  .pos{margin-top:14px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:#fff}
+  .pos-head{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:8px}
+  .pos-head #posText{color:var(--ink);font-variant-numeric:tabular-nums;font-weight:500}
+  .pos-btns{display:flex;gap:6px;flex-wrap:wrap}
+  .hint{font-size:10.5px;color:#a49d8e;margin-top:7px;line-height:1.45}
+
+  /* ---------- 抽屉：账号 / 设施 / 避坑 ---------- */
+  .subblock{margin-top:14px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:#fff}
+  .sub-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:600;margin-bottom:9px;flex-wrap:wrap}
+  .sub-head .sub-tip{font-size:10.5px;color:#a49d8e;font-weight:400}
+  .sub-head .link-btn{font-size:10.5px;font-weight:500}
+  .sub-head #checkCount{font-variant-numeric:tabular-nums}
+  .sub-head #checkCount.ok{color:var(--good)}
+  .sub-head #checkCount.low{color:var(--warn)}
+  .metro-flag.bad{color:var(--bad)!important;font-weight:500}
+  .metro-flag.good{color:var(--good)!important}
+  .checks{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
+  .checks label{display:flex;gap:6px;align-items:flex-start;font-size:11.5px;color:#4b5058;line-height:1.35;cursor:pointer}
+  .checks input{margin:1px 0 0;accent-color:var(--accent);width:14px;height:14px;flex:none}
+  .checks label.done{color:var(--good)}
+  .amenity-result{margin-top:8px;font-size:11px;color:#5f646b;line-height:1.5}
+  .amenity-result .ar-hint{color:#a49d8e;font-size:10.5px;line-height:1.5}
+  .amenity-result .arow{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dashed var(--line-soft)}
+  .amenity-result .arow:last-child{border-bottom:0}
+  .amenity-result .far{color:var(--bad)}
+  .amenity-result b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+  .amenity-result b.far{color:var(--bad)}
+  .drawer-foot{
+    display:flex;align-items:center;gap:8px;padding:12px 18px calc(14px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--line-soft);background:#fdfcf9;
+  }
+  .score-preview{font-size:11px;color:var(--muted);margin-right:auto;line-height:1.3}
+  .score-preview b{font-variant-numeric:tabular-nums}
+
+  /* ---------- settings dialog ---------- */
+  .dialog{
+    position:fixed;left:50%;top:50%;transform:translate(-50%,-46%) scale(.98);z-index:1300;
+    width:min(460px,calc(100vw - 32px));max-height:86dvh;overflow-y:auto;background:#fdfcf9;
+    border-radius:18px;box-shadow:var(--shadow-lg);padding:20px 22px;opacity:0;pointer-events:none;
+    transition:.22s;border:1px solid var(--line);
+  }
+  .dialog.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+  .dialog h2{font-size:16px;font-weight:650;margin-bottom:14px}
+  .dialog label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:11px}
+  .dialog input,.dialog select{
+    display:block;width:100%;margin-top:4px;border:1px solid var(--line);background:#fff;border-radius:9px;
+    padding:8px 9px;outline:none;
+  }
+  .dialog-note{margin-top:6px;padding:11px 12px;background:#f5f2ea;border:1px solid #e9e4d9;border-radius:11px}
+  .dialog-note b{font-size:11.5px;color:#4b5058;display:block;margin-bottom:4px}
+  .dialog-note ul{margin:0;padding-left:15px;font-size:11px;color:#7c766a;line-height:1.65}
+  .dialog-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+
+  /* ---------- 同址对比 ---------- */
+  .mini-btn.danger{border-color:#f0c1ba;color:#b91c1c;background:#fff8f6}
+  .mini-btn.danger:hover{background:#fdeceb;border-color:#e8a79f}
+  .cmp-dialog{width:min(780px,calc(100vw - 24px));padding:18px 20px}
+  .cmp-dialog h2{margin-bottom:3px}
+  .cmp-sub{font-size:11.5px;color:var(--muted);line-height:1.55;margin-bottom:11px}
+  .cmp-sub b{color:var(--ink)}
+  .cmp-table{overflow:auto;max-height:56dvh;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .cmp-table table{border-collapse:collapse;width:100%;min-width:520px;font-size:11.5px}
+  .cmp-table th,.cmp-table td{padding:7px 8px;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:top}
+  .cmp-table thead th{position:sticky;top:0;background:#f7f4ee;font-size:10.5px;color:var(--muted);font-weight:600;z-index:1}
+  .cmp-table tbody th{font-weight:500;color:var(--muted);white-space:nowrap;width:74px}
+  .cmp-table td{font-variant-numeric:tabular-nums}
+  .cmp-table td.dev{background:#fdeceb;color:var(--bad);font-weight:650;border-radius:4px}
+  .cmp-table td.cmp-title{font-weight:600;color:var(--ink);min-width:130px;max-width:210px}
+  .cmp-table tr:last-child th,.cmp-table tr:last-child td{border-bottom:0}
+  .cmp-btns{display:flex;gap:4px;flex-wrap:wrap}
+  .cmp-btns .mini-btn{padding:4px 7px;font-size:10.5px}
+  .cmp-btns a.mini-btn{text-decoration:none;display:inline-flex;align-items:center}
+
+  @media (max-width:900px){
+    .app{grid-template-columns:1fr;grid-template-rows:33dvh 1fr}
+    .map-wrap{order:-1}
+    .side{border-right:0;border-top:1px solid var(--line);overflow-y:auto}
+    .side > *{flex-shrink:0}
+    .filters{display:none}
+    .side.show-filters .filters{display:block}
+    .side.show-filters .filter-collapse{display:block;margin:2px 0 0 auto}
+    #btnToggleFilters{display:inline}
+    .list{flex:0 0 auto;overflow:visible;padding-bottom:74px}
+    .side-foot{position:sticky;bottom:0;z-index:5}
+    .drawer{width:100%;height:92dvh;top:auto;bottom:0;border-radius:18px 18px 0 0;transform:translateY(105%);border-left:0}
+    .drawer.open{transform:translateY(0)}
+    .legend{left:12px;bottom:12px;max-width:190px;padding:8px 10px}
+    .map-top{top:10px}
+    .layers button{padding:5px 8px;font-size:11px}
+    .banner{top:52px;font-size:11.5px;padding-right:30px}
+    .pick-banner{bottom:auto;top:auto;bottom:82px}
+    .alert-strip{left:12px;right:12px;bottom:auto;top:52px;max-width:none}
+    .cmp-dialog{padding:15px;max-height:90dvh}
+    .cmp-table{max-height:52dvh}
+  }
+  @media (max-width:420px){
+    .form-grid{grid-template-columns:1fr}
+    .budget-grid{grid-template-columns:1fr 1fr;gap:8px}
+    .budget-grid .full{grid-column:1/-1}
+    .budget-grid .field span{font-size:10px}
+    .budget-grid .field input{padding:8px 9px;font-size:12.5px}
+    .q-links{grid-template-columns:1fr 1fr}
+    .checks{grid-template-columns:1fr}
+    .toggles .switch{font-size:11px;padding:5px 7px}
+  }
+
+  /* =========================================================
+     Animal Island UI 主题覆盖
+     奶油底 / 棕色文字 / 薄荷绿主色 / 2px 描边 / 3D 胶囊按钮
+     ========================================================= */
+  :root{
+    --ai-bg:#f8f8f0; --ai-bg2:#f0e8d8; --ai-card:#f7f3df; --ai-card-hi:#fffdf5;
+    --ai-primary:#19c8b9; --ai-primary-hi:#3dd4c6; --ai-primary-deep:#0f9e92; --ai-primary-soft:#e6f9f6;
+    --ai-text:#794f27; --ai-text-2:#9f927d; --ai-border:#dcd8d1; --ai-border-2:#e8e2d6;
+    --ai-good:#6fba2c; --ai-warn:#f5c31c; --ai-bad:#e05a5a;
+    --ai-shadow:0 3px 10px rgba(61,52,40,.10);
+    --ai-shadow-lg:0 8px 24px rgba(61,52,40,.14);
+    --bg:#f8f8f0; --panel:#fffdf5; --card:#f7f3df; --ink:#794f27; --muted:#9f927d;
+    --line:#dcd8d1; --line-soft:#e8e2d6; --accent:#19c8b9; --accent-deep:#5f4326;
+    --good:#4f9a1f; --warn:#b98600; --bad:#d9534f; --r:20px;
+    --shadow-sm:var(--ai-shadow); --shadow-md:var(--ai-shadow-lg);
+  }
+  html,body{background:var(--ai-bg)}
+  body{
+    font-family:"Nunito","Noto Sans SC",-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    color:var(--ai-text);
+    background:
+      radial-gradient(1100px 620px at 4% -12%,#fffdf2 0%,rgba(255,253,242,0) 62%),
+      radial-gradient(900px 520px at 106% 18%,#eef7e7 0%,rgba(238,247,231,0) 58%),
+      var(--ai-bg);
+  }
+  ::selection{background:#c9efe8;color:#4f3619}
+  h1,h2,h3{letter-spacing:.005em}
+  input,select,textarea{color:var(--ai-text)}
+  a{color:var(--ai-primary-deep)}
+
+  /* 侧栏与品牌 */
+  .side{background:var(--ai-card-hi);border-right:2px solid var(--ai-border-2)}
+  .brand{padding:16px 18px 12px}
+  .brand h1{font-size:17px;font-weight:800;color:#6b4a26}
+  .brand p{color:#a89b85;font-weight:600}
+  .logo{
+    background:linear-gradient(150deg,#e9fbf6 0%,#c8efe6 100%);
+    border:2px solid #b6e5da;border-radius:16px;
+    box-shadow:0 3px 0 #cfe8de,inset 0 1px 0 #fff;
+  }
+  .icon-btn{border-radius:12px;color:#a89b85}
+  .icon-btn:hover{background:var(--ai-primary-soft);color:var(--ai-primary-deep);border-color:#bfeae2}
+
+  .loc{
+    border:2px solid var(--ai-border-2);border-radius:18px;background:#fffdf5;
+    box-shadow:0 3px 0 #efe5cf;margin:0 14px 9px;padding:10px 11px;
+  }
+  .loc-pin{background:var(--ai-primary-soft);color:var(--ai-primary-deep);border-radius:12px}
+  .loc-name{font-weight:700;color:#6b4a26}
+  .loc-sub{color:#a89b85}
+  .mini-btn{
+    border:1.5px solid var(--ai-border-2);background:#fffdf5;border-radius:999px;
+    color:#8b7f6b;font-weight:700;padding:5px 11px;
+  }
+  .mini-btn:hover{border-color:#cfc0a6;background:#fff8e8;color:#6b4a26}
+  .mini-btn.danger{border-color:#f0bdb6;color:#c0504a;background:#fff3f1}
+
+  .stats{color:#a89b85;font-weight:600}
+  .stats b{color:#6b4a26;font-weight:800}
+  .stats .g{color:#4f9a1f}
+  .stats .w{color:#b98600}
+  .stats .b{color:#d9534f}
+
+  /* 常驻工具行 */
+  .tool-row{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:6px;padding:0 14px 10px}
+  .tool-btn{
+    display:flex;align-items:center;justify-content:center;gap:5px;
+    border:2px solid var(--ai-border-2);background:var(--ai-card);color:#7a5a33;
+    border-radius:999px;padding:7px 6px;font-size:11.5px;font-weight:800;line-height:1.2;
+    box-shadow:0 3px 0 #e4d6bd;transition:transform .12s,box-shadow .12s,background .12s;
+    white-space:nowrap;
+  }
+  .tool-btn:hover{background:#fff9e9;border-color:#d8c8ae;transform:translateY(-1px)}
+  .tool-btn:active{transform:translateY(2px);box-shadow:0 1px 0 #e4d6bd}
+  .tool-btn.ask{background:var(--ai-primary);border-color:#12b3a5;color:#fff;box-shadow:0 3px 0 var(--ai-primary-deep)}
+  .tool-btn.ask:hover{background:var(--ai-primary-hi)}
+  .tool-btn svg{width:13px;height:13px;flex:none}
+
+  .filters{padding:0 14px 9px}
+  .frow > label,.frow > .f-lab{color:#a89b85;font-weight:700}
+  .range input,.field input,.field select,.field textarea,.search-input{
+    border:1.5px solid var(--ai-border-2);background:#fffdf7;border-radius:12px;color:#6b4a26;
+  }
+  .range input{padding:6px 8px}
+  .range input:focus,.field input:focus,.field textarea:focus,.field select:focus,
+  .search-input:focus,#sKeyword:focus,#sKey:focus,#sCity:focus,#askText:focus,
+  #hoodNote:focus,#fSort:focus{
+    border-color:#7fd8cd;box-shadow:0 0 0 3px rgba(25,200,185,.16);outline:none;
+  }
+  .search-input{flex:1;padding:6px 9px;font-size:12.5px}
+  .range .unit,.range .sep{color:#b3a58d}
+  .seg{background:var(--ai-bg2);border-radius:999px;padding:3px}
+  .seg button{border-radius:999px;color:#8b7f6b;font-weight:700}
+  .seg button.on{background:#fffdf5;color:#6b4a26;box-shadow:0 2px 0 #e3d6bd}
+  #fSort{border:1.5px solid var(--ai-border-2);border-radius:999px;background:#fffdf7;color:#8b7f6b;font-weight:700}
+  .toggles{border-bottom:2px solid var(--ai-border-2);gap:6px}
+  .switch{
+    border:1.5px solid var(--ai-border-2);background:#fffdf5;border-radius:999px;
+    color:#8b7f6b;font-weight:700;
+  }
+  .switch i{background:#ddd5c6}
+  .switch.on{background:var(--ai-primary-soft);border-color:#a9e6dc;color:#0f8e84}
+  .switch.on i{background:var(--ai-primary)}
+
+  .quick{border-bottom:2px solid var(--ai-border-2)}
+  .q-title{color:#a89b85;font-weight:700}
+  .q-title span{color:#b8ab95}
+  .q-link{
+    border:1.5px solid var(--ai-border-2);background:var(--ai-card);border-radius:999px;
+    color:#7a5a33;font-weight:700;box-shadow:0 2px 0 #e6d8bf;
+  }
+  .q-link:hover{border-color:#b9e6db;background:#f2fdf9;color:#0f8e84;text-decoration:none}
+  .q-note{color:#b3a58d}
+
+  .list-head{color:#a89b85;font-weight:700}
+  .link-btn{color:var(--ai-primary-deep);font-weight:800}
+  .link-btn.danger{color:#b3a58d}
+  .list::-webkit-scrollbar-thumb{background:#dccfb8;border:2px solid var(--ai-card-hi)}
+
+  /* 房源卡片 */
+  .card{
+    background:var(--ai-card);border:2px solid var(--ai-border-2);border-radius:20px;
+    box-shadow:0 3px 0 #ece1cb,0 6px 14px rgba(61,52,40,.05);
+    padding:11px 13px 10px;
+  }
+  .card:hover{
+    border-color:#d8c8ae;transform:translateY(-2px);
+    box-shadow:0 5px 0 #e7dac2,0 12px 24px rgba(61,52,40,.10);
+  }
+  .card.sample{background:#fffbe9;border-style:dashed;border-color:#d9c496}
+  .card.bait{background:#fff2ef;border-color:#f2b8b2}
+  .price{color:#5f4326;font-weight:800;font-family:"Nunito","Noto Sans SC",sans-serif}
+  .price .cur{color:#b98d5a}
+  .price span{color:#a89b85}
+  .chip{
+    border-radius:999px;border-width:1.5px;font-weight:800;padding:3.5px 7px;
+  }
+  .chip.good{color:#3f7d16;background:#eef8d9;border-color:#c9e6a4}
+  .chip.warn{color:#8a6a00;background:#fdf7d3;border-color:#f0e39a}
+  .chip.bad{color:#b3423c;background:#fde8e4;border-color:#f4c0b9}
+  .chip.dup{color:#8b7f6b;background:#f2efe6;border-color:#e2dbcd}
+  .chip.info{color:#0f8f84;background:var(--ai-primary-soft);border-color:#bfece4}
+  .chip.cmp{color:#6b5b43;background:#f6efdf;border-color:#e3d6bd}
+  .chip.sample{color:#8a6a00;background:#fff4cc;border-color:#efd88e}
+  .chip.star{color:#a06c00;background:#fff1c2;border-color:#efd489}
+  button.chip.cmp:hover{background:#efe4cd}
+  button.chip.bad:hover{background:#fbdad5}
+  .card h3{color:#6b4a26;font-weight:700}
+  .meta{color:#a89b85}
+  .meta .dot{color:#d3c6ad}
+  .meta-hood{
+    border:0;background:var(--ai-primary-soft);color:#0f8e84;border-radius:999px;
+    padding:1px 7px;font-size:10.5px;font-weight:800;display:inline-flex;align-items:center;gap:3px;
+    line-height:1.5;
+  }
+  .meta-hood em{font-style:normal;font-size:9px;opacity:.68;font-weight:700}
+  .meta-hood:hover{background:#cdf2eb}
+  .card-foot{border-top:2px dashed #ece1cb}
+  .up{color:#a89b85}
+  .card-btns button,.card-btns a{color:#9a8a70;font-weight:700;border-radius:999px}
+  .card-btns button:hover,.card-btns a:hover{background:var(--ai-bg2);color:#6b4a26}
+  .card-btns .on{color:#b98600}
+  .empty{color:#a89b85}
+
+  /* 底栏按钮：3D 胶囊 */
+  .side-foot{border-top:2px solid var(--ai-border-2);background:var(--ai-card-hi)}
+  .primary{
+    background:var(--ai-primary);border:2px solid #12b3a5;color:#fff;border-radius:999px;
+    font-weight:800;box-shadow:0 5px 0 var(--ai-primary-deep);padding:8px 15px;
+  }
+  .primary:hover{background:var(--ai-primary-hi);border-color:#12b3a5;transform:translateY(-1px)}
+  .primary:active{transform:translateY(3px);box-shadow:0 2px 0 var(--ai-primary-deep)}
+  .ghost{
+    background:var(--ai-bg2);border:2px solid #e0d3bd;color:#7a5a33;border-radius:999px;
+    font-weight:800;box-shadow:0 4px 0 #dccdb6;padding:7px 12px;
+  }
+  .ghost:hover{background:#f6efdf;border-color:#d6c6aa;transform:translateY(-1px)}
+  .ghost:active{transform:translateY(2px);box-shadow:0 2px 0 #dccdb6}
+
+  /* 地图控件 */
+  .map-wrap,#map{background:#efe9dc}
+  .leaflet-tile-pane{filter:saturate(.72) brightness(1.04) contrast(.94) sepia(.05)}
+  .map-top{top:14px}
+  .layers{
+    background:rgba(255,253,245,.96);border:2px solid var(--ai-border-2);border-radius:999px;
+    padding:3px;box-shadow:0 4px 0 #e6d8bf,0 8px 18px rgba(61,52,40,.10);
+  }
+  .layers button{border-radius:999px;color:#8b7f6b;font-weight:800}
+  .layers button.on{background:var(--ai-primary);color:#fff;box-shadow:inset 0 -2px 0 rgba(0,0,0,.08)}
+  .legend{
+    background:rgba(255,253,245,.97);border:2px solid var(--ai-border-2);border-radius:20px;
+    box-shadow:0 4px 0 #e6d8bf,0 10px 24px rgba(61,52,40,.10);color:#8b7f6b;
+  }
+  .legend .row{color:#b3a58d}
+  .legend .dots{padding-top:8px;border-top:2px dashed #ece1cb}
+  .legend .src{color:#b3a58d}
+  .ring-label{background:rgba(255,253,245,.92);border:1.5px solid #d8c8ae;border-radius:999px;color:#8b7f6b;padding:0 5px}
+  .alert-strip{
+    background:#fff3f1;border:2px solid #f0bdb6;border-radius:18px;color:#a94a42;
+    box-shadow:0 4px 0 #f4d6d1,0 10px 24px rgba(61,52,40,.10);
+  }
+  .alert-strip .mini-btn{border-color:#f0bdb6;color:#c0504a;background:#fffdf5}
+  .banner{
+    background:#fff7df;color:#79552b;border:2px solid #efd99a;border-radius:18px;
+    box-shadow:0 6px 0 #f0e2b8,0 18px 40px rgba(61,52,40,.16);
+  }
+  .banner code{background:#f3e8c8;color:#6b4a26}
+  .banner .x{color:#b09565}
+  .banner .x:hover{color:#6b4a26}
+  .pick-banner{background:var(--ai-primary-deep);color:#eafffb;border-radius:999px;box-shadow:0 5px 0 #0b8b81}
+  .pick-banner b{color:#fff}
+  .toast{background:#5f4326;color:#fff8e9;border-radius:999px;box-shadow:0 8px 24px rgba(61,52,40,.28);font-weight:700}
+
+  .leaflet-container{color:#6b4a26}
+  .leaflet-control-zoom{border:2px solid var(--ai-border-2)!important;border-radius:14px!important;box-shadow:0 4px 0 #e6d8bf!important;overflow:hidden}
+  .leaflet-control-zoom a{color:#8b7f6b!important;background:#fffdf5!important;border-bottom:1.5px solid #ece1cb!important}
+  .leaflet-control-zoom a:hover{background:#fff6e3!important;color:#6b4a26!important}
+  .leaflet-control-attribution{background:rgba(255,253,245,.82)!important;color:#a89b85!important}
+  .leaflet-popup-content-wrapper{background:#fffdf5;border:2px solid var(--ai-border-2);border-radius:20px;box-shadow:0 8px 0 #eee3cc,0 18px 40px rgba(61,52,40,.18)}
+  .leaflet-popup-tip{background:#fffdf5;box-shadow:none}
+  .pop-price{color:#5f4326}
+  .pop-title{color:#6b4a26}
+  .pop-meta{color:#a89b85}
+  .pop-link{color:var(--ai-primary-deep)}
+  .home-marker{border-color:var(--ai-primary-deep);box-shadow:0 0 0 4px rgba(25,200,185,.20),0 2px 8px rgba(0,0,0,.25)}
+  .home-marker::after{background:var(--ai-primary-deep)}
+
+  /* 抽屉 / 弹窗 */
+  .scrim{background:rgba(95,67,38,.26);backdrop-filter:blur(2px)}
+  .drawer{
+    background:#fffdf5;border-left:2px solid var(--ai-border-2);
+    box-shadow:-20px 0 60px rgba(61,52,40,.18);
+  }
+  .drawer-head{border-bottom:2px solid #f0ead9;padding:16px 18px 12px}
+  .drawer-head h2{color:#6b4a26;font-weight:800}
+  .drawer-body{padding:14px 18px 18px}
+  .paste{background:#f9f3e3;border:2px dashed #e3d6bd;border-radius:18px}
+  .paste label{color:#a89b85;font-weight:700}
+  .paste textarea{
+    border:1.5px solid var(--ai-border-2);background:#fffdf7;border-radius:12px;color:#6b4a26;
+  }
+  .field > span{color:#a89b85;font-weight:700}
+  .pos,.subblock{border:2px solid #ece4d4;border-radius:18px;background:#fffdf7}
+  .pos-head{color:#a89b85}
+  .pos-head #posText{color:#6b4a26}
+  .hint{color:#b3a58d}
+  .sub-head{color:#6b4a26}
+  .sub-head .sub-tip{color:#b3a58d}
+  .checks label{color:#8b7f6b}
+  .checks input{accent-color:var(--ai-primary)}
+  .checks label.done{color:#4f9a1f}
+  .amenity-result{color:#8b7f6b}
+  .amenity-result .arow{border-bottom:1.5px dashed #efe6d4}
+  .amenity-result b{color:#6b4a26}
+  .drawer-foot{border-top:2px solid #f0ead9;background:#fffdf5}
+  .score-preview{color:#a89b85}
+
+  .dialog{
+    background:#fffdf5;border:2px solid var(--ai-border-2);border-radius:24px;
+    box-shadow:0 8px 0 #f0e5ce,0 30px 70px rgba(61,52,40,.20);
+  }
+  .dialog h2{color:#6b4a26;font-weight:800}
+  .dialog label{color:#a89b85;font-weight:700}
+  .dialog input,.dialog select{
+    border:1.5px solid var(--ai-border-2);background:#fffdf7;border-radius:12px;color:#6b4a26;
+  }
+  .dialog-note{background:#f9f3e3;border:2px dashed #e3d6bd;border-radius:16px}
+  .dialog-note b{color:#6b4a26}
+  .dialog-note ul{color:#8b7f6b}
+  .cmp-sub{color:#a89b85}
+  .cmp-sub b{color:#6b4a26}
+  .cmp-table{border:2px solid var(--ai-border-2);border-radius:16px;background:#fffdf7}
+  .cmp-table thead th{background:#f7f1e1;color:#a89b85}
+  .cmp-table th,.cmp-table td{border-bottom:1.5px solid #f0ead9}
+  .cmp-table td.cmp-title{color:#6b4a26}
+  .cmp-table td.dev{background:#fde8e4;color:#b3423c}
+
+  /* 新功能：一句话找房 / 条件条 */
+  .tool-dialog{width:min(530px,calc(100vw - 24px));padding:20px 22px}
+  .tool-dialog .dialog-foot{
+    position:sticky;bottom:0;z-index:2;margin:14px -22px -20px;
+    padding:11px 22px calc(14px + env(safe-area-inset-bottom));
+    background:#fffdf5;border-top:1.5px solid var(--ai-border-2);border-radius:0 0 22px 22px;
+  }
+
+  /* 看房进度 / 看房计划 */
+  .visit-status{display:flex;flex-wrap:wrap;gap:5px}
+  .visit-status button{
+    border:1.5px solid var(--ai-border-2);background:#fffdf7;border-radius:999px;
+    padding:5px 11px;font-size:11px;font-weight:700;color:#8b7f6b;
+  }
+  .visit-status button.on{background:var(--ai-primary-soft);border-color:#9fded6;color:var(--ai-primary-deep)}
+  .visit-status button.on[data-v="scheduled"]{background:#fdf7d3;border-color:#f0e39a;color:#8a6a00}
+  .visit-status button.on[data-v="viewed"]{background:#eef8d9;border-color:#c9e6a4;color:#3f7d16}
+  .visit-status button.on[data-v="dropped"]{background:#fde8e4;border-color:#f2b8b2;color:#b3423c}
+  .price-hist{margin:-4px 0 10px;font-size:10.5px;color:#a89b85;line-height:1.6}
+  .price-hist b{color:#6b4a26}
+  .plan-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 0 10px}
+  .plan-sum div{background:#f7f3df;border:1.5px solid var(--ai-border-2);border-radius:12px;padding:6px 8px}
+  .plan-sum span{display:block;font-size:9.5px;color:#a89b85;font-weight:700}
+  .plan-sum b{display:block;font-size:15px;color:#6b4a26;font-variant-numeric:tabular-nums;margin-top:1px}
+  .plan-list{display:flex;flex-direction:column;gap:7px;max-height:52dvh;overflow-y:auto;padding-right:2px}
+  .plan-row{
+    display:grid;grid-template-columns:58px 1fr auto;gap:8px;align-items:center;
+    border:1.5px solid var(--ai-border-2);border-radius:14px;padding:8px 10px;background:#fffdf7;
+  }
+  .plan-row.overdue{border-color:#f2b8b2;background:#fff7f5}
+  .plan-date b{display:block;font-size:12px;color:#6b4a26;font-variant-numeric:tabular-nums}
+  .plan-date span{display:block;font-size:9.5px;color:#a89b85;margin-top:1px}
+  .plan-main{min-width:0}
+  .plan-main b{display:block;font-size:12px;color:#6b4a26;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .plan-main span{display:block;font-size:10.5px;color:#a89b85;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .plan-btns{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+  .plan-btns button{
+    border:1px solid var(--ai-border-2);border-radius:8px;background:#fff;padding:3px 7px;
+    font-size:10px;font-weight:700;color:#8b7f6b;
+  }
+  .plan-btns button:hover{background:#fdf9ec;border-color:#d8c8ae;color:#6b4a26}
+  .plan-empty{padding:22px 12px;text-align:center;color:#a89b85;font-size:12px;line-height:1.8}
+
+  /* 首月预算 */
+  .budget-presets{display:flex;gap:6px;flex-wrap:wrap;margin:1px 0 10px}
+  .budget-presets button{
+    border:1.5px solid var(--ai-border-2);background:#fffdf7;border-radius:999px;
+    padding:5px 9px;font-size:10.5px;font-weight:700;color:#8b7f6b;
+  }
+  .budget-presets button:hover{background:#fdf9ec;border-color:#d8c8ae}
+  .budget-presets button.on{background:var(--ai-primary-soft);border-color:#8edbd0;color:var(--ai-primary-deep)}
+  .budget-result{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:4px 0 8px}
+  .budget-result > div{background:#f7f3df;border:1.5px solid var(--ai-border-2);border-radius:14px;padding:8px 10px}
+  .budget-result span{display:block;font-size:9.5px;color:#a89b85;font-weight:700}
+  .budget-result b{display:block;font-size:16px;color:#6b4a26;font-variant-numeric:tabular-nums;margin-top:2px}
+  .budget-result .cash{background:var(--ai-primary-soft);border-color:#bfece4}
+  .budget-result .cash b{color:var(--ai-primary-deep)}
+  .budget-break{font-size:10.5px;color:#a89b85;line-height:1.8;background:#fdf9ec;border-radius:12px;padding:7px 10px}
+  .budget-break b{color:#6b4a26}
+  .dlg-sub{font-size:11.5px;color:#a89b85;line-height:1.65;margin:-6px 0 12px;font-weight:600}
+  .ask-text{
+    width:100%;border:2px solid var(--ai-border-2);background:#fffdf7;border-radius:16px;
+    padding:10px 12px;resize:vertical;line-height:1.65;font-size:13px;outline:none;
+  }
+  .ask-examples{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0 2px}
+  .ask-examples .mini-btn{font-size:10.5px;padding:5px 9px}
+  .ask-preview{
+    margin-top:10px;min-height:66px;padding:10px 12px;border:2px dashed var(--ai-border-2);
+    border-radius:16px;background:#fdf9ec;font-size:11.5px;color:#8b7f6b;line-height:1.7;
+  }
+  .ask-preview .ask-line{font-weight:800;color:#6b4a26;margin-bottom:5px}
+  .ask-preview .conds{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:5px}
+  .cond{
+    display:inline-flex;align-items:center;gap:4px;border:1.5px solid #bfece4;background:var(--ai-primary-soft);
+    color:#0f8e84;border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:800;
+  }
+  .cond b{font-variant-numeric:tabular-nums;color:#0b7d74}
+  .cond.zero{border-color:#f4c0b9;background:#fde8e4;color:#b3423c}
+  .cond.zero b{color:#b3423c}
+  .ask-preview .ask-hint{display:block;color:#b3a58d;font-size:10.5px;margin-top:3px}
+  .need-bar{
+    display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:7px 14px 8px;
+    background:#f6fbf7;border-bottom:2px solid var(--ai-border-2);
+  }
+  .need-bar[hidden]{display:none}
+  .need-bar .nb-label{font-size:10.5px;color:#a89b85;font-weight:800;margin-right:1px}
+  .need-chip{
+    display:inline-flex;align-items:center;gap:4px;border:1.5px solid #bfece4;background:#fffdf5;
+    color:#0f8e84;border-radius:999px;padding:2px 4px 2px 8px;font-size:10.5px;font-weight:800;
+  }
+  .need-chip button{border:0;background:none;color:#7fb9b1;font-size:12px;line-height:1;padding:1px 3px;border-radius:999px}
+  .need-chip button:hover{background:#e6f9f6;color:#0b7d74}
+  .need-bar .nb-clear{margin-left:auto;font-size:10.5px}
+
+  /* 新功能：小区尽调 */
+  .hood-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+  .hood-stat{
+    border:1.5px solid var(--ai-border-2);background:var(--ai-card);border-radius:14px;
+    padding:7px 9px;display:flex;flex-direction:column;gap:1px;
+  }
+  .hood-stat span{font-size:10px;color:#a89b85;font-weight:700}
+  .hood-stat b{font-size:14px;color:#6b4a26;font-weight:800;font-variant-numeric:tabular-nums}
+  .hood-links{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}
+  .hood-links a{
+    display:inline-flex;align-items:center;gap:4px;border:1.5px solid var(--ai-border-2);
+    background:#fffdf5;border-radius:999px;padding:4px 9px;font-size:10.5px;font-weight:800;
+    color:#7a5a33;text-decoration:none;
+  }
+  .hood-links a:hover{background:#f2fdf9;border-color:#b9e6db;color:#0f8e84;text-decoration:none}
+  .hood-links a i{width:6px;height:6px;border-radius:50%;flex:none}
+  .hood-block{margin-top:10px;padding:9px 11px}
+  .tag-pick{display:flex;flex-wrap:wrap;gap:5px}
+  .tag-pick button{
+    border:1.5px solid var(--ai-border-2);background:#fffdf5;color:#8b7f6b;border-radius:999px;
+    padding:4px 9px;font-size:10.5px;font-weight:800;transition:.12s;
+  }
+  .tag-pick button:hover{border-color:#cfc0a6;background:#fff8e8}
+  .tag-pick.good button.on{background:#eef8d9;border-color:#b9dc8b;color:#3f7d16}
+  .tag-pick.risk button.on{background:#fde8e4;border-color:#f2b8b2;color:#b3423c}
+  .hood-note{display:block;font-size:11.5px;color:#a89b85;font-weight:700;margin-top:11px}
+  .hood-note textarea{
+    display:block;width:100%;margin-top:4px;border:2px solid var(--ai-border-2);background:#fffdf7;
+    border-radius:14px;padding:8px 10px;resize:vertical;line-height:1.6;outline:none;
+  }
+
+  /* 新功能：行情速览 */
+  .market-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+  .market-stat{
+    border:1.5px solid var(--ai-border-2);background:var(--ai-card);border-radius:14px;
+    padding:7px 8px;display:flex;flex-direction:column;gap:1px;min-width:0;
+  }
+  .market-stat span{font-size:9.5px;color:#a89b85;font-weight:700;white-space:nowrap}
+  .market-stat b{font-size:13px;color:#6b4a26;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .market-chart{margin-bottom:12px}
+  .hist{display:flex;align-items:flex-end;gap:3px;height:92px;padding:10px 8px 0;border:1.5px solid var(--ai-border-2);background:#fffdf7;border-radius:16px 16px 0 0;border-bottom:0}
+  .hist-col{
+    flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;
+    gap:2px;border:0;background:none;padding:0 0 3px;border-radius:6px 6px 0 0;
+  }
+  .hist-col i{
+    display:block;width:100%;max-width:34px;min-height:4px;border-radius:6px 6px 2px 2px;
+    background:linear-gradient(180deg,var(--ai-primary-hi),var(--ai-primary));box-shadow:inset 0 -2px 0 rgba(0,0,0,.06);
+  }
+  .hist-col:hover i{background:linear-gradient(180deg,#ffe08a,#f5c31c)}
+  .hist-col .hist-n{font-size:9px;color:#a89b85;font-weight:800;line-height:1}
+  .hist-axis{display:flex;justify-content:space-between;font-size:9.5px;color:#b3a58d;padding:3px 9px 0}
+  .market-block{margin-top:4px}
+  .market-table{border:1.5px solid var(--ai-border-2);border-radius:16px;overflow:hidden;background:#fffdf7}
+  .mt-row{
+    display:grid;grid-template-columns:1fr 46px 78px 62px;gap:6px;align-items:center;
+    width:100%;border:0;border-bottom:1.5px solid #f0ead9;background:none;padding:7px 10px;
+    font-size:11px;color:#8b7f6b;text-align:left;
+  }
+  .mt-row:last-child{border-bottom:0}
+  .mt-row.head{background:#f7f1e1;color:#a89b85;font-size:9.5px;font-weight:800;padding:5px 10px}
+  .mt-row:not(.head):hover{background:#fdf9ec}
+  .mt-row b{color:#6b4a26;font-weight:800;font-variant-numeric:tabular-nums;text-align:right}
+  .mt-row .mt-com{color:#6b4a26;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mt-row .mt-n{text-align:right;font-variant-numeric:tabular-nums}
+
+  @media (max-width:900px){
+    .tool-row{padding:0 14px 9px;grid-template-columns:1.2fr 1fr 1fr 1fr}
+    .tool-btn{font-size:11px;padding:7px 4px}
+    .drawer{border:2px solid var(--ai-border-2);border-bottom:0;border-radius:24px 24px 0 0}
+    .dialog{padding:18px 16px;border-radius:22px}
+    .tool-dialog{width:calc(100vw - 20px);max-height:88dvh}
+    .tool-dialog .dialog-foot{
+      margin:12px -16px -18px;padding:10px 16px calc(12px + env(safe-area-inset-bottom));
+      border-radius:0 0 20px 20px;
+    }
+    .plan-row{grid-template-columns:52px 1fr}
+    .plan-btns{grid-column:1/-1;justify-content:flex-start}
+    .plan-sum{grid-template-columns:1fr 1fr}
+    .budget-result{grid-template-columns:1fr 1fr}
+    .hood-stats{grid-template-columns:repeat(3,1fr)}
+    .market-stats{grid-template-columns:1fr 1fr}
+    .market-stat b{font-size:12.5px}
+    .need-bar{padding:6px 14px 7px}
+  }
+  @media (max-width:420px){
+    .tool-row{grid-template-columns:1.2fr 1fr 1fr 1fr;gap:5px}
+    .tool-btn{font-size:10.5px;gap:3px;padding:7px 2px}
+    .tool-btn svg{width:11px;height:11px}
+    .q-links{grid-template-columns:repeat(4,1fr);gap:4px}
+    .q-link{font-size:10.5px;padding:6px 2px}
+    .hood-stats{grid-template-columns:1fr 1fr}
+    .mt-row{grid-template-columns:1fr 38px 66px 54px;font-size:10.5px;padding:7px 8px}
+    .mt-row.head{font-size:9px;padding:5px 8px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0f9e92" stroke-width="1.6" stroke-linecap="round">
+          <circle cx="12" cy="12" r="9" opacity=".3"/>
+          <circle cx="12" cy="12" r="5.2" opacity=".5"/>
+          <circle cx="12" cy="12" r="1.4" fill="#0f9e92" stroke="none"/>
+          <path d="M12 12 L19 6.4" stroke="#f0a83c" stroke-width="2"/>
+        </svg>
+      </div>
+      <div>
+        <h1>找房雷达</h1>
+        <p>真实房源 · 中介过滤 · 热力分布</p>
+      </div>
+      <button class="icon-btn" id="btnSettings" title="设置" aria-label="设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+          <circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.6 1.6 0 0 0 .32 1.77l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.6 1.6 0 0 0 15 19.4a1.6 1.6 0 0 0-.97 1.47V21a2 2 0 1 1-4 0v-.09A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.77.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.6 1.6 0 0 0 4.6 15a1.6 1.6 0 0 0-1.47-.97H3a2 2 0 1 1 0-4h.09A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.32-1.77l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.6 1.6 0 0 0 9 4.6h.09A1.6 1.6 0 0 0 10.03 3v-.09a2 2 0 1 1 4 0V3a1.6 1.6 0 0 0 .97 1.47 1.6 1.6 0 0 0 1.77-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.6 1.6 0 0 0 19.4 9v.09a1.6 1.6 0 0 0 1.47.97H21a2 2 0 1 1 0 4h-.09a1.6 1.6 0 0 0-1.47.97z"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="loc">
+      <div class="loc-pin" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/>
+        </svg>
+      </div>
+      <div class="loc-txt">
+        <div class="loc-name" id="locName">正在定位…</div>
+        <div class="loc-sub" id="locSub">需要授权浏览器定位</div>
+      </div>
+      <button class="mini-btn" id="btnLocate">定位</button>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="tool-row">
+      <button class="tool-btn ask" id="btnAsk" title="用一句话描述需求，自动拆成筛选条件">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.2 9.2 0 0 1-3.8-.8L3 21l1.9-4.8A8.2 8.2 0 0 1 3.6 11 8.4 8.4 0 0 1 12 2.6a8.4 8.4 0 0 1 9 8.9z"/>
+          <path d="M8.5 10.5h7M8.5 14h4.5"/>
+        </svg>
+        一句话找房
+      </button>
+      <button class="tool-btn" id="btnPlan" title="按时间查看已约看房、联系记录和已看房源">看房计划</button>
+      <button class="tool-btn" id="btnMarket" title="看当前房源的租金分布与小区价格带">行情速览</button>
+      <button class="tool-btn" id="btnReport" title="把当前结果导出成一份可分享的 HTML 报告">尽调报告</button>
+    </div>
+
+    <div class="filters">
+      <div class="frow">
+        <label for="fMin">租金</label>
+        <div class="range">
+          <input id="fMin" type="number" inputmode="numeric" placeholder="最低" aria-label="最低租金">
+          <span class="sep">–</span>
+          <input id="fMax" type="number" inputmode="numeric" placeholder="最高" aria-label="最高租金">
+          <span class="unit">元/月</span>
+        </div>
+      </div>
+      <div class="frow">
+        <span class="f-lab">户型</span>
+        <div class="seg" id="fRooms" role="group" aria-label="户型">
+          <button data-v="0" class="on">不限</button>
+          <button data-v="1">1居</button>
+          <button data-v="2">2居</button>
+          <button data-v="3">3居+</button>
+        </div>
+        <select id="fSort" aria-label="排序" style="flex:0 0 88px">
+          <option value="new">最新</option>
+          <option value="price">租金低</option>
+          <option value="unit">单价低</option>
+          <option value="metro">地铁近</option>
+          <option value="trust">可信</option>
+        </select>
+      </div>
+      <div class="frow">
+        <label for="fQ">搜索</label>
+        <input id="fQ" type="search" class="search-input" placeholder="小区 / 地铁 / 关键词" aria-label="搜索小区、地铁或关键词">
+      </div>
+      <button type="button" class="link-btn filter-collapse" id="btnCollapseFilters">收起筛选</button>
+    </div>
+
+    <div class="toggles">
+      <button class="switch on" id="fPersonal"><i></i>过滤疑似中介</button>
+      <button class="switch on" id="fNoDup"><i></i>隐藏重复</button>
+      <button class="switch on" id="fBait"><i></i>隐藏货不对板</button>
+    </div>
+
+    <div class="quick">
+      <div class="q-title">去这些地方捞房源 <span>新窗口打开</span></div>
+      <div class="q-links" id="qLinks"></div>
+      <div class="q-note">优先「个人 / 转租 / 房东直租」，整段粘进「添加」即可自动识别与打分。</div>
+    </div>
+
+    <div class="list-head">
+      <span id="listCount">0 条房源</span>
+      <div class="list-actions">
+        <button class="link-btn only-mobile" id="btnToggleFilters">筛选</button>
+        <button class="link-btn" id="btnSample">载入示例</button>
+        <button class="link-btn danger" id="btnClear">清空</button>
+      </div>
+    </div>
+
+    <div class="need-bar" id="needBar" hidden></div>
+
+    <div class="list" id="list"></div>
+
+    <div class="side-foot">
+      <button class="primary" id="btnAdd">＋ 添加房源</button>
+      <button class="ghost" id="btnExport" title="导出 JSON 备份">导出</button>
+      <button class="ghost" id="btnImport" title="导入 JSON 备份">导入</button>
+      <input type="file" id="fileImport" accept=".json,application/json" aria-label="导入 JSON 备份" hidden>
+    </div>
+  </aside>
+
+  <main class="map-wrap">
+    <div id="map"></div>
+
+    <div class="map-top">
+      <div class="seg layers" id="layers">
+        <button data-v="both" class="on">热力 + 标记</button>
+        <button data-v="heat">热力图</button>
+        <button data-v="pins">仅标记</button>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div>房源密度（已收录）</div>
+      <div class="bar"></div>
+      <div class="row"><span>低</span><span>高</span></div>
+      <div class="dots">
+        <span><i style="background:#16a34a"></i>个人</span>
+        <span><i style="background:#f59e0b"></i>待判断</span>
+        <span><i style="background:#ef4444"></i>疑似中介</span>
+      </div>
+      <div class="src">底图高德 · 坐标已校正</div>
+      <button class="switch on" id="fRings"><i></i>步行圈 / 设施</button>
+    </div>
+
+    <div class="alert-strip" id="alertStrip" hidden>
+      <span id="alertText"></span>
+      <button class="mini-btn" id="btnAlertCmp">对比</button>
+    </div>
+
+    <div class="banner" id="banner" hidden>
+      <span id="bannerText"></span>
+      <button class="x" id="bannerClose" aria-label="关闭">×</button>
+    </div>
+
+    <div class="pick-banner" id="pickBanner">
+      <span>点击地图选择房源位置</span>
+      <b>Esc 取消</b>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="scrim" id="scrim"></div>
+
+<div class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <h2 id="drawerTitle">添加房源</h2>
+    <button class="icon-btn" id="btnCloseDrawer" aria-label="关闭">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body">
+    <div class="paste">
+      <label for="pasteBox">粘贴房源文本 / 链接（自动识别价格、面积、户型、电话、来源）</label>
+      <textarea id="pasteBox" rows="4" aria-label="粘贴房源原文" placeholder="把豆瓣 / 小红书 / 闲鱼里的帖子整段粘进来，例如：&#10;【房东直租】XX小区 2室1厅 68平 租金5200元/月 3/6层 …"></textarea>
+      <button class="mini-btn" id="btnParse">识别并填入</button>
+    </div>
+
+    <div class="form-grid">
+      <label class="field full"><span>标题</span><input id="dTitle" placeholder="整租·XX小区 2室1厅 南向"></label>
+      <label class="field"><span>租金（元/月）</span><input id="dPrice" type="number" inputmode="numeric" placeholder="5200"></label>
+      <label class="field"><span>面积（㎡）</span><input id="dArea" type="number" inputmode="decimal" placeholder="68"></label>
+      <label class="field"><span>户型（室）</span><input id="dRooms" type="number" min="1" max="9" placeholder="2"></label>
+      <label class="field"><span>楼层</span><input id="dFloor" placeholder="3/6层"></label>
+      <label class="field full"><span>小区 / 地址</span><input id="dCommunity" placeholder="用于地址定位，也可直接用地图点选"></label>
+      <label class="field full"><span>原帖链接</span><input id="dUrl" placeholder="https://..."></label>
+      <label class="field"><span>联系电话</span><input id="dPhone" placeholder="选填"></label>
+      <label class="field"><span>来源</span><select id="dSource"></select></label>
+      <label class="field full"><span>描述 / 备注</span><textarea id="dNote" rows="3" placeholder="把帖子正文粘贴在这里，中介话术检测会更准"></textarea></label>
+    </div>
+    <p class="price-hist" id="priceHist" hidden></p>
+    <div class="pos-btns" style="margin:-2px 0 11px">
+      <button class="mini-btn" id="btnBudgetDrawer" title="按当前租金算押付、中介费、水电和搬家">算这套首月成本</button>
+    </div>
+
+    <div class="pos">
+      <div class="pos-head"><span>位置</span><span id="posText">未指定</span></div>
+      <div class="pos-btns">
+        <button class="mini-btn" id="btnPosCenter">用地图中心</button>
+        <button class="mini-btn" id="btnPosPick">在地图上点选</button>
+        <button class="mini-btn" id="btnPosGeo">按地址定位</button>
+      </div>
+      <p class="hint">「按地址定位」优先走高德 Key，没有 Key 时用 OpenStreetMap 免费地理编码；不确定就点选，最准。</p>
+    </div>
+
+    <div class="subblock">
+      <div class="sub-head">
+        <span>发布账号画像</span>
+        <span class="sub-tip">点进主页数一下，不用截图</span>
+      </div>
+      <div class="form-grid">
+        <label class="field"><span>账号名 / 昵称</span><input id="dAcctName" placeholder="选填"></label>
+        <label class="field"><span>近 7 日发帖数</span><input id="dAcctPosts" type="number" min="0" placeholder="如 6"></label>
+        <label class="field"><span>历史内容</span>
+          <select id="dAcctType">
+            <option value="unknown">不确定 / 没看</option>
+            <option value="personal">大量个人生活内容</option>
+            <option value="mixed">生活 + 租房混发</option>
+            <option value="rentonly">几乎全是出租帖</option>
+          </select>
+        </label>
+        <label class="field"><span>主页链接</span><input id="dAcctUrl" placeholder="https://..."></label>
+      </div>
+      <p class="hint">房东 / 转租客通常生活内容多、发帖低频；中介号常一天发多条、内容清一色房源。只是信号，不单独定罪。</p>
+    </div>
+
+    <div class="subblock">
+      <div class="sub-head">
+        <span>生活设施距离</span>
+        <span class="sub-tip metro-flag" id="metroFlag"></span>
+      </div>
+      <div class="form-grid">
+        <label class="field"><span>最近地铁站</span><input id="dMetroName" placeholder="如 江苏路站"></label>
+        <label class="field"><span>实测步行距离（米）</span><input id="dMetroDist" type="number" min="0" placeholder="自己走一遍更准"></label>
+        <label class="field"><span>帖子声称距离（米）</span><input id="dMetroClaimed" type="number" min="0" placeholder="识别后可改"></label>
+        <label class="field"><span>声称原文</span><input id="dMetroClaimText" placeholder="如「地铁 5 分钟」"></label>
+      </div>
+      <div class="pos-btns" style="margin-top:9px">
+        <button class="mini-btn" id="btnAmenity">查周边（OSM）</button>
+        <button class="mini-btn" id="btnClearAmenity">清除设施结果</button>
+      </div>
+      <div class="amenity-result" id="amenityResult"></div>
+      <p class="hint">OSM 国内覆盖不均，查不到就手动填「实测距离」。声称距离与实际差 1.3 倍以上会被标红。</p>
+    </div>
+
+    <div class="subblock">
+      <div class="sub-head">
+        <span>看房进度</span>
+        <span class="sub-tip">只存本机，可在「看房计划」里看</span>
+      </div>
+      <div class="visit-status" id="visitStatus" role="group" aria-label="看房进度"></div>
+      <div class="form-grid" style="margin-top:9px">
+        <label class="field full"><span>看房时间</span><input id="dVisitAt" type="datetime-local"></label>
+        <label class="field full"><span>联系记录 / 要问的问题</span><textarea id="dVisitNote" rows="2" placeholder="如：约周六 19:00；问能否养猫、物业费谁付、押金退多久"></textarea></label>
+      </div>
+      <p class="hint">标成「已约看」并填时间后，会进入顶部「看房计划」，过期未看会标红。</p>
+    </div>
+
+    <div class="subblock">
+      <div class="sub-head">
+        <span>租房避坑清单 <b id="checkCount">0/8</b></span>
+        <button class="link-btn" id="btnCopyQs">复制问房东的 10 个问题</button>
+      </div>
+      <div class="checks" id="checks"></div>
+      <p class="hint">看房时逐条问清、能写进合同的才打勾。押金、水电、维修、涨租这四项最容易扯皮。</p>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <span class="score-preview" id="scorePreview"></span>
+    <button class="ghost" id="btnCancel">取消</button>
+    <button class="primary" id="btnSave">保存</button>
+  </div>
+</div>
+
+<div class="dialog" id="dialog" aria-hidden="true">
+  <h2>设置</h2>
+  <label>城市（用于平台链接）
+    <select id="sCity"></select>
+  </label>
+  <label>搜索关键词（小区 / 地铁 / 商圈）
+    <input id="sKeyword" placeholder="如：中山公园 / 2号线 / 阳光花园">
+  </label>
+  <label>高德 Web 服务 Key（可选）
+    <input id="sKey" placeholder="用于地址 → 坐标、逆地理编码">
+  </label>
+  <p class="hint">Key 仅保存在本机浏览器，不会上传。不填也能用。</p>
+
+  <div class="dialog-note">
+    <b>关于这个工具，先把话说清楚</b>
+    <ul>
+      <li>它<b>不会</b>自动爬全网：租房平台有登录墙与反爬，浏览器也不允许跨站读取。</li>
+      <li>它是半自动工作台：一键跳平台 → 粘贴帖子 → 自动去重、算中介分、上热力图。</li>
+      <li>热力图只反映你已录入的房源，不是全网存量。</li>
+      <li>账号画像要你点进主页看「近 7 日发帖」和「是否只发租帖」，工具不会替你抓主页。</li>
+      <li>周边设施优先走高德 POI（填了 Key 时）；没填或高德失败则退回 OpenStreetMap，国内覆盖不均，查不到就手动填实测距离。</li>
+      <li>「同址对比」按小区名或 120m 内坐标归组；租金差 15% / 面积差 10% 以上的项标红。</li>
+      <li>「示例数据」是虚构的，仅用于预览效果，别当真。</li>
+      <li>所有数据存在本机 localStorage，不上传。</li>
+    </ul>
+  </div>
+
+  <div class="dialog-foot">
+    <button class="ghost" id="btnDialogClose">关闭</button>
+    <button class="primary" id="btnSaveSettings">保存</button>
+  </div>
+</div>
+
+<div class="dialog cmp-dialog" id="cmpDialog" aria-hidden="true">
+  <h2>同址房源对比</h2>
+  <div class="cmp-sub" id="cmpNote"></div>
+  <div class="cmp-table" id="cmpBody"></div>
+  <div class="dialog-foot">
+    <button class="ghost" id="btnCmpClose">关闭</button>
+    <button class="primary" id="btnCmpDone">知道了</button>
+  </div>
+</div>
+
+<div class="dialog tool-dialog" id="askDialog" aria-hidden="true">
+  <h2>一句话找房</h2>
+  <p class="dlg-sub">把需求写成人话，自动拆成租金、户型、整租/合租、近地铁和关键词，只筛选本机已录入的房源。</p>
+  <textarea id="askText" class="ask-text" rows="3" aria-label="用一句话描述找房需求" placeholder="例：预算 4000 以内，一居，朝南，最好近地铁，不要中介"></textarea>
+  <div class="ask-examples">
+    <button type="button" class="mini-btn" data-ask="4000以内 一居 朝南 近地铁 不要中介">4千内 / 一居 / 近地铁</button>
+    <button type="button" class="mini-btn" data-ask="4000-6000 两居 整租 不要中介">4–6千 / 两居 / 整租 / 个人</button>
+    <button type="button" class="mini-btn" data-ask="2500以内 合租 可短租 押一付一">2.5千内 / 合租 / 短租</button>
+  </div>
+  <div class="ask-preview" id="askPreview"><span class="ask-hint">写成一句话后，这里会显示识别到的条件和匹配条数。</span></div>
+  <div class="dialog-foot">
+    <button class="ghost" id="btnAskClose">取消</button>
+    <button class="primary" id="btnAskApply">应用筛选</button>
+  </div>
+</div>
+
+<div class="dialog tool-dialog" id="hoodDialog" aria-hidden="true">
+  <h2 id="hoodTitle">小区尽调</h2>
+  <p class="dlg-sub" id="hoodSub">看看这个小区已录房源的价格，再去平台补口碑。</p>
+  <div class="hood-stats" id="hoodStats"></div>
+  <div class="hood-links" id="hoodLinks"></div>
+  <div class="subblock hood-block">
+    <div class="sub-head"><span>优点标签</span><span class="sub-tip">点选，存在本机</span></div>
+    <div class="tag-pick good" id="hoodGood"></div>
+  </div>
+  <div class="subblock hood-block">
+    <div class="sub-head"><span>风险标签</span><span class="sub-tip">看房后回来补</span></div>
+    <div class="tag-pick risk" id="hoodRisk"></div>
+  </div>
+  <label class="hood-note">我的备注
+    <textarea id="hoodNote" rows="3" placeholder="如：3 号楼临街吵；房东要求年付；物业费 3.5 元/㎡；晚上 8 点后去看一次"></textarea>
+  </label>
+  <div class="dialog-foot">
+    <button class="ghost" id="btnHoodClose">关闭</button>
+    <button class="primary" id="btnHoodSave">保存尽调</button>
+  </div>
+</div>
+
+<div class="dialog tool-dialog market-dialog" id="marketDialog" aria-hidden="true">
+  <h2>行情速览</h2>
+  <p class="dlg-sub" id="marketSub"></p>
+  <div class="market-stats" id="marketStats"></div>
+  <div class="market-chart" id="marketChart"></div>
+  <div class="market-block">
+    <div class="sub-head"><span>小区价格带</span><span class="sub-tip">点一行按小区筛选</span></div>
+    <div class="market-table" id="marketTable"></div>
+  </div>
+  <p class="hint">只统计你已录入、且符合当前筛选的房源，不是全网挂牌量；中位数比均价更抗极端值。</p>
+  <div class="dialog-foot">
+    <button class="ghost" id="btnMarketClose">关闭</button>
+    <button class="ghost" id="btnBudgetFromMarket">首月预算</button>
+    <button class="primary" id="btnReportFromMarket">导出尽调报告</button>
+  </div>
+</div>
+
+<div class="dialog tool-dialog" id="planDialog" aria-hidden="true">
+  <h2>看房计划</h2>
+  <p class="dlg-sub">按时间排已约看房；时间过了会标红。只列你标过进度或填过时间的房源。</p>
+  <div class="plan-sum" id="planSum"></div>
+  <div class="plan-list" id="planList"></div>
+  <div class="dialog-foot">
+    <button class="ghost" id="btnPlanClose">关闭</button>
+    <button class="primary" id="btnPlanAdd">添加房源</button>
+  </div>
+</div>
+
+<div class="dialog tool-dialog" id="budgetDialog" aria-hidden="true">
+  <h2>首月真实成本</h2>
+  <p class="dlg-sub">把押付、中介费、水电宽带和搬家一次算清；预算口径只存本机，下次自动带出。</p>
+  <div class="form-grid budget-grid">
+    <label class="field"><span>月租（元）</span><input id="bRent" type="number" inputmode="numeric" placeholder="5000"></label>
+    <label class="field"><span>押金（月）</span><input id="bDeposit" type="number" inputmode="numeric" min="0" max="12"></label>
+    <label class="field"><span>一次付（月）</span><input id="bPay" type="number" inputmode="numeric" min="1" max="12"></label>
+    <label class="field"><span>中介费（月租 %）</span><input id="bAgency" type="number" inputmode="numeric" min="0" max="200"></label>
+    <label class="field"><span>水电燃气（元/月）</span><input id="bUtil" type="number" inputmode="numeric" min="0"></label>
+    <label class="field"><span>宽带（元/月）</span><input id="bNet" type="number" inputmode="numeric" min="0"></label>
+    <label class="field full"><span>搬家 + 添置（一次性）</span><input id="bMove" type="number" inputmode="numeric" min="0"></label>
+  </div>
+  <div class="budget-presets">
+    <button type="button" data-preset="1,3,35">押一付三 · 中介 35%</button>
+    <button type="button" data-preset="1,1,0">押一付一 · 无中介</button>
+    <button type="button" data-preset="1,3,100">押一付三 · 中介 100%</button>
+  </div>
+  <div class="budget-result" id="budgetResult"></div>
+  <div class="budget-break" id="budgetBreak"></div>
+  <p class="hint">「一次付」是签约时要预付的租金月数；押金通常可退，不计入年化月成本。中介费按一个月租金的百分比填。</p>
+  <div class="dialog-foot">
+    <button class="ghost" id="btnBudgetClose">关闭</button>
+    <button class="primary" id="btnBudgetSave">保存口径</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script>
+/* =========================================================
+   找房雷达 — 本地单页工作台
+   - 定位：WGS-84 → GCJ-02 校正后贴到高德底图
+   - 数据：localStorage，可导出 / 导入 JSON
+   - 热力：leaflet.heat，权重按可信度
+   ========================================================= */
+(function () {
+  'use strict';
+
+  var $ = function (s, el) { return (el || document).querySelector(s); };
+  var $$ = function (s, el) { return Array.prototype.slice.call((el || document).querySelectorAll(s)); };
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  };
+  var uid = function () { return 'l' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3); };
+  var money = function (n) { return Number(n || 0).toLocaleString('zh-CN'); };
+  var clamp = function (n, a, b) { return Math.min(b, Math.max(a, n)); };
+  var debounce = function (fn, ms) {
+    var t; return function () { var a = arguments, self = this; clearTimeout(t); t = setTimeout(function () { fn.apply(self, a); }, ms); };
+  };
+  var median = function (arr) {
+    if (!arr.length) return 0;
+    var s = arr.slice().sort(function (a, b) { return a - b; });
+    var m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  var haversine = function (a, b) {
+    if (!a || !b) return null;
+    var R = 6371, toR = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * toR, dLng = (b.lng - a.lng) * toR;
+    var s = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * toR) * Math.cos(b.lat * toR) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  };
+  var walkMin = function (m) { return Math.max(1, Math.round((Number(m) || 0) * 1.3 / 75)); };
+  var pctDiff = function (a, b) {
+    if (!a || !b) return 0;
+    return Math.abs(a - b) / Math.max(a, b);
+  };
+
+  /* ---------------- 坐标转换 WGS84 → GCJ02 ---------------- */
+  var PI = Math.PI, AXIS = 6378245.0, EE = 0.00669342162296594323;
+  function outOfChina(lng, lat) { return !(lng > 73.66 && lng < 135.05 && lat > 3.86 && lat < 53.55); }
+  function tLat(x, y) {
+    var r = -100 + 2 * x + 3 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+    r += (20 * Math.sin(6 * x * PI) + 20 * Math.sin(2 * x * PI)) * 2 / 3;
+    r += (20 * Math.sin(y * PI) + 40 * Math.sin(y / 3 * PI)) * 2 / 3;
+    r += (160 * Math.sin(y / 12 * PI) + 320 * Math.sin(y * PI / 30)) * 2 / 3;
+    return r;
+  }
+  function tLng(x, y) {
+    var r = 300 + x + 2 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+    r += (20 * Math.sin(6 * x * PI) + 20 * Math.sin(2 * x * PI)) * 2 / 3;
+    r += (20 * Math.sin(x * PI) + 40 * Math.sin(x / 3 * PI)) * 2 / 3;
+    r += (150 * Math.sin(x / 12 * PI) + 300 * Math.sin(x / 30 * PI)) * 2 / 3;
+    return r;
+  }
+  function wgs2gcj(lng, lat) {
+    if (outOfChina(lng, lat)) return { lng: lng, lat: lat };
+    var dLat = tLat(lng - 105, lat - 35), dLng = tLng(lng - 105, lat - 35);
+    var radLat = lat / 180 * PI;
+    var magic = Math.sin(radLat);
+    magic = 1 - EE * magic * magic;
+    var sqrtMagic = Math.sqrt(magic);
+    dLat = (dLat * 180) / ((AXIS * (1 - EE)) / (magic * sqrtMagic) * PI);
+    dLng = (dLng * 180) / (AXIS / sqrtMagic * Math.cos(radLat) * PI);
+    return { lng: lng + dLng, lat: lat + dLat };
+  }
+  // GCJ-02 → WGS-84 近似反算（国内误差约 1–2m，用于 OSM / Overpass 查询）
+  function gcj2wgs(lng, lat) {
+    if (outOfChina(lng, lat)) return { lng: lng, lat: lat };
+    var g = wgs2gcj(lng, lat);
+    return { lng: lng * 2 - g.lng, lat: lat * 2 - g.lat };
+  }
+
+  /* ---------------- 常量 ---------------- */
+  var LS_KEY = 'findhouse.radar.v1';
+  var DEFAULT_CENTER = [31.2285, 121.4780]; // 上海人民广场附近（GCJ-02）
+
+  var CITIES = {
+    '上海': 'sh', '北京': 'bj', '深圳': 'sz', '广州': 'gz', '杭州': 'hz', '成都': 'cd',
+    '武汉': 'wh', '南京': 'nj', '苏州': 'su', '天津': 'tj', '重庆': 'cq', '西安': 'xa',
+    '长沙': 'cs', '无锡': 'wx', '宁波': 'nb', '青岛': 'qd', '厦门': 'xm', '郑州': 'zz',
+    '合肥': 'hf', '济南': 'jn', '福州': 'fz', '昆明': 'km', '大连': 'dl', '沈阳': 'sy',
+    '东莞': 'dg', '佛山': 'fs', '珠海': 'zh', '南昌': 'nc', '贵阳': 'gy', '石家庄': 'sjz'
+  };
+
+  var SOURCES = {
+    douban: '豆瓣', xiaohongshu: '小红书', xianyu: '闲鱼', beike: '贝壳/链家',
+    '58': '58/安居客', wellcee: 'Wellcee', weibo: '微博', other: '其他'
+  };
+  var SOURCE_DOT = {
+    douban: '#16a34a', xiaohongshu: '#ef4444', xianyu: '#f59e0b', beike: '#2563eb',
+    '58': '#f97316', wellcee: '#0d9488', weibo: '#e11d48', other: '#94a3b8'
+  };
+  var SOURCE_TRUST = { douban: -8, wellcee: -10, xiaohongshu: -6, xianyu: -2, beike: 6, '58': 14, weibo: -4, other: 0 };
+
+  var AGENT_RULES = [
+    { re: /(钥匙在手|随时看房|随时入住|看房方便|拎包入住|拎包住|当天入住)/g, w: 9, why: '中介常用话术' },
+    { re: /(多套|同户型|有多套|房源充足|本公司|门店|经纪人|中介|代理|委托)/g, w: 16, why: '中介身份词' },
+    { re: /(免中介费|0中介费|零中介费|不收取中介费|无中介费)/g, w: 8, why: '“免中介费”话术' },
+    { re: /(加微信|加 ?v|微信同号|电话微信|私聊|扫码)/gi, w: 6, why: '导流话术' },
+    { re: /(精装|豪装|豪华装修|南北通透|家电齐全|全配|新装修|首次出租)/g, w: 3, why: '模板化描述' },
+    { re: /(押一付一|押一付三|付三押一)/g, w: 2, why: '模板化描述' },
+    { re: /(真实房源|实拍|实景拍摄|图片真实)/g, w: 4, why: '“真实”自证' },
+    { re: /(【.*?】|！{2,}|!!!)/g, w: 3, why: '营销标点' }
+  ];
+  var TRUST_RULES = [
+    { re: /(个人直租|房东直租|无中介|中介勿扰|个人房源|房东本人|非中介|业主直租)/, w: -24, why: '自称个人 / 无中介' },
+    { re: /(室友|合租找室友|转租|因工作调动|工作调动|毕业转租|急转|个人转租)/, w: -12, why: '转租 / 合租场景' }
+  ];
+
+  var ACCT_TYPES = {
+    unknown: '不确定 / 没看',
+    personal: '大量个人生活内容',
+    mixed: '生活 + 租房混发',
+    rentonly: '几乎全是出租帖'
+  };
+
+  var CHECK_ITEMS = [
+    { id: 'deposit', label: '押金规则 / 退还条件' },
+    { id: 'utility', label: '水电燃气单价（民水民电？）' },
+    { id: 'owner', label: '房东＝房产证本人' },
+    { id: 'nofake', label: '非隔断 / 非群租 / 非二房东' },
+    { id: 'repair', label: '维修责任与响应时限' },
+    { id: 'permit', label: '可办居住证 / 可备案' },
+    { id: 'noise', label: '噪音、采光、漏水确认' },
+    { id: 'rent', label: '涨租与提前解约条款' }
+  ];
+
+  var ASK_QUESTIONS = [
+    '房子是您本人名下的吗？能看一下房产证和身份证吗？',
+    '押几付几？押金退还是按天算还是整月扣？',
+    '水、电、燃气、物业、网费分别怎么算？是民水民电吗？',
+    '是整租还是合租？有没有隔断、群租？',
+    '除了房租和押金，还有没有中介费、服务费、保洁费？',
+    '家电家具坏了谁修？多久上门？',
+    '能办居住证、能做租赁备案吗？',
+    '租期多久？提前退租怎么算违约金？',
+    '第二年续租涨不涨租？涨幅怎么定？',
+    '能不能把上面这些写进合同？看房时我能拍照/录视频吗？'
+  ];
+
+  var AMENITY_LABEL = { metro: '地铁', supermarket: '超市', market: '菜场', convenience: '便利店' };
+
+  // 一句话找房：文本里能验证的软标签
+  var TAG_RULES = [
+    { key: '朝南', re: /朝南|南向|坐北朝南/ },
+    { key: '独卫', re: /独卫|独立卫浴|独立卫生间/ },
+    { key: '可短租', re: /短租|月付|灵活租期|三个月起/ },
+    { key: '押一付一', re: /押一付一/ },
+    { key: '可养宠', re: /养宠|宠物|可养猫|可养狗/ },
+    { key: '电梯', re: /电梯/ },
+    { key: '采光好', re: /采光|阳光/ },
+    { key: '阳台', re: /阳台/ },
+    { key: '南北通透', re: /南北通透/ },
+    { key: '近商圈', re: /商圈|市中心/ }
+  ];
+
+  var HOOD_GOOD = ['地铁近', '生活便利', '小区安静', '采光好', '电梯房', '房东好沟通', '绿化好', '物业负责'];
+  var HOOD_RISK = ['隔音差', '停车难', '房龄老', '二房东多', '涨租快', '潮湿', '临街吵', '物业差'];
+
+  // 看房进度：借鉴 rightHouse / 租房 tracker 的生命周期，但只做租客侧
+  var VISIT_STATUS = {
+    '': { label: '未开始', chip: 'dup' },
+    contacted: { label: '已联系', chip: 'info' },
+    scheduled: { label: '已约看', chip: 'warn' },
+    viewed: { label: '已看', chip: 'good' },
+    dropped: { label: '放弃', chip: 'bad' }
+  };
+  var VISIT_ORDER = ['scheduled', 'contacted', 'viewed', 'dropped', ''];
+
+  function normalizeBudget(b) {
+    b = b || {};
+    var out = {};
+    [['deposit', 1, 0, 12], ['pay', 3, 1, 12], ['agency', 35, 0, 200],
+      ['utilities', 200, 0, 5000], ['internet', 100, 0, 1000], ['moving', 1000, 0, 100000]
+    ].forEach(function (x) {
+      var n = Number(b[x[0]]);
+      out[x[0]] = isFinite(n) ? Math.min(x[3], Math.max(x[2], n)) : x[1];
+    });
+    return out;
+  }
+  function ensureListingMeta(l) {
+    if (!Array.isArray(l.priceHistory) || !l.priceHistory.length) {
+      l.priceHistory = l.price ? [{ p: Number(l.price), t: Number(l.createdAt) || Date.now() }] : [];
+    } else {
+      var last = l.priceHistory[l.priceHistory.length - 1];
+      if (l.price && Number(last.p) !== Number(l.price)) {
+        l.priceHistory.push({ p: Number(l.price), t: Date.now() });
+        if (l.priceHistory.length > 20) l.priceHistory = l.priceHistory.slice(-20);
+      }
+    }
+    if (l.visitStatus == null) l.visitStatus = '';
+    if (l.visitAt == null) l.visitAt = '';
+    if (l.visitNote == null) l.visitNote = '';
+  }
+  function priceDrop(l) {
+    var h = l.priceHistory || [];
+    if (h.length < 2) return 0;
+    var prev = Number(h[h.length - 2].p), cur = Number(l.price) || 0;
+    return prev > cur ? prev - cur : 0;
+  }
+  function dropSince(l) {
+    var h = l.priceHistory || [];
+    return h.length ? Number(h[h.length - 1].t) || 0 : 0;
+  }
+  function missingFields(l) {
+    var miss = [];
+    if (!Number(l.area)) miss.push('面积');
+    if (!String(l.community || '').trim()) miss.push('小区');
+    if (!Number(l.metroDist) && !Number(l.metroClaimed)) miss.push('地铁');
+    if (!l.account || !l.account.type || l.account.type === 'unknown') miss.push('账号');
+    return miss;
+  }
+  function fmtVisit(at) {
+    if (!at) return '';
+    var d = new Date(at);
+    if (isNaN(d.getTime())) return String(at);
+    var p = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return (d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function localInput(ms) {
+    var d = new Date(ms);
+    var p = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+      'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function sourceOf(url) {
+    if (!url) return 'other';
+    if (/douban\.com/i.test(url)) return 'douban';
+    if (/xiaohongshu\.com|xhslink\.com/i.test(url)) return 'xiaohongshu';
+    if (/goofish\.com|2\.taobao\.com/i.test(url)) return 'xianyu';
+    if (/(ke|lianjia)\.com/i.test(url)) return 'beike';
+    if (/(58|anjuke|fang)\.com/i.test(url)) return '58';
+    if (/wellcee\.com/i.test(url)) return 'wellcee';
+    if (/weibo\.com|weibo\.cn/i.test(url)) return 'weibo';
+    return 'other';
+  }
+
+  /* ---------------- 状态 ---------------- */
+  var state = {
+    listings: [],
+    home: null,            // { lat, lng, acc }
+    city: 'sh',
+    cityName: '上海',
+    keyword: '',
+    amapKey: '',
+    layer: 'both',
+    filters: {
+      min: '', max: '', rooms: 0, personal: true, noDup: true, hideBait: true,
+      q: '', sort: 'new', needs: [], layout: '', nearMetro: false
+    },
+    draft: null,
+    editingId: null,
+    picking: false,
+    pickingFromDrawer: false,
+    showRings: true,
+    focusId: null,
+    groups: [],
+    cmpKey: null,
+    hoods: {},            // 小区尽调：{ 小区名: { good:[], risk:[], note, updatedAt } }
+    hoodEditing: null,
+    budget: { deposit: 1, pay: 3, agency: 35, utilities: 200, internet: 100, moving: 1000 }
+  };
+
+  function save() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        listings: state.listings, home: state.home, city: state.city,
+        cityName: state.cityName, keyword: state.keyword, amapKey: state.amapKey,
+        hoods: state.hoods, budget: state.budget
+      }));
+    } catch (e) { /* 存储满或隐私模式 */ }
+  }
+  var saveSoon = debounce(save, 400);
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      var d = JSON.parse(raw);
+      state.listings = Array.isArray(d.listings) ? d.listings : [];
+      state.home = d.home || null;
+      state.city = d.city || 'sh';
+      state.cityName = d.cityName || '上海';
+      state.keyword = d.keyword || '';
+      state.amapKey = d.amapKey || '';
+      state.hoods = (d.hoods && typeof d.hoods === 'object' && !Array.isArray(d.hoods)) ? d.hoods : {};
+      if (d.budget && typeof d.budget === 'object') state.budget = normalizeBudget(d.budget);
+    } catch (e) { console.warn('读取本地数据失败', e); }
+  }
+
+  /* ---------------- 地图 ---------------- */
+  var map, heatLayer, pinLayer, homeLayer, pickMarker, hasFit = false;
+
+  function initMap() {
+    map = L.map('map', { zoomControl: true, attributionControl: true, maxZoom: 19 })
+      .setView(DEFAULT_CENTER, 14);
+
+    L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+      subdomains: ['1', '2', '3', '4'],
+      maxZoom: 19,
+      maxNativeZoom: 18,
+      attribution: '底图 © 高德地图 · 坐标已做 GCJ-02 校正'
+    }).addTo(map);
+
+    pinLayer = L.layerGroup().addTo(map);
+    homeLayer = L.layerGroup().addTo(map);
+    map.on('click', onMapClick);
+    // 旋转屏幕 / 窗口尺寸变化后 Leaflet 需要重算尺寸，否则会留空白
+    var rzTimer;
+    window.addEventListener('resize', function () {
+      clearTimeout(rzTimer);
+      rzTimer = setTimeout(function () { if (map) map.invalidateSize(); }, 160);
+    });
+  }
+
+  var homeIcon = L.divIcon({
+    className: '', html: '<div class="home-marker"></div>', iconSize: [16, 16], iconAnchor: [8, 8]
+  });
+
+  function setHome(lat, lng, acc, fly) {
+    state.home = { lat: lat, lng: lng, acc: acc || null };
+    homeLayer.clearLayers();
+    L.marker([lat, lng], { icon: homeIcon, interactive: false, keyboard: false }).addTo(homeLayer);
+    if (acc && acc > 40) {
+      L.circle([lat, lng], {
+        radius: Math.min(acc, 1500), color: '#0f766e', weight: 1, opacity: .35,
+        fillColor: '#0f766e', fillOpacity: .06, interactive: false
+      }).addTo(homeLayer);
+    }
+    if (fly) map.flyTo([lat, lng], 15, { duration: .8 });
+    render();
+    saveSoon();
+  }
+
+  /* ---------------- 评分 / 去重 ---------------- */
+  function scoreListing(l, all) {
+    if (l.bait) {
+      l.agentScore = 100;
+      l.why = ['已人工标记为货不对板 · 建议直接排除'];
+      return 100;
+    }
+    var score = 18, why = [];
+    var text = String(l.title || '') + ' ' + String(l.desc || '') + ' ' + String(l.note || '');
+    // 先剔除“非中介 / 无中介”这类否定说法，避免把自称个人误判成中介
+    var scan = text.replace(/(非中介|无中介|中介勿扰|不通过中介|没有中介|无任何中介)/g, ' ');
+    AGENT_RULES.forEach(function (r) {
+      var c = (scan.match(r.re) || []).length;
+      if (c) { score += Math.min(c, 3) * r.w; why.push(r.why); }
+    });
+    TRUST_RULES.forEach(function (r) {
+      if (r.re.test(text)) { score += r.w; why.push(r.why); }
+    });
+    if (l.phone) { score += 7; why.push('直接留电话'); }
+
+    // 发布账号画像：近 7 日发帖频率 + 历史内容类型
+    var ac = l.account || {};
+    var p7 = ac.posts7;
+    if (p7 !== '' && p7 != null && !isNaN(Number(p7))) {
+      p7 = Number(p7);
+      if (p7 >= 8) { score += 20; why.push('账号 7 天发 ' + p7 + ' 条（高频）'); }
+      else if (p7 >= 4) { score += 10; why.push('账号 7 天发 ' + p7 + ' 条（偏多）'); }
+      else if (p7 <= 1) { score -= 8; why.push('账号近期几乎不发帖'); }
+    }
+    if (ac.type === 'rentonly') { score += 14; why.push('账号几乎只发出租帖'); }
+    else if (ac.type === 'personal') { score -= 16; why.push('账号有大量个人生活内容'); }
+    else if (ac.type === 'mixed') { score += 4; why.push('账号生活与租房混发'); }
+
+    if (metroMismatch(l)) { score += 8; why.push('距地铁与帖子声称不符'); }
+
+    var st = SOURCE_TRUST[l.source] || 0;
+    score += st;
+    if (st > 0) why.push(SOURCES[l.source] + '上中介比例较高');
+    if (st < 0) why.push(SOURCES[l.source] + '以个人帖为主');
+
+    if (all && all.length >= 5 && l.price && l.area) {
+      var units = all.filter(function (x) { return x.price && x.area; })
+        .map(function (x) { return x.price / x.area; });
+      var med = median(units);
+      if (med && (l.price / l.area) < med * 0.7) {
+        score += 14; why.push('单价明显低于周边（虚假房源常见）');
+      }
+    }
+
+    l.agentScore = clamp(Math.round(score), 0, 100);
+    l.why = why.filter(function (v, i, a) { return a.indexOf(v) === i; });
+    return l.agentScore;
+  }
+
+  function trustOf(l) {
+    if (l.bait) return { key: 'bad', label: '货不对板', color: '#ef4444', ink: '#b91c1c' };
+    var s = l.agentScore == null ? 30 : l.agentScore;
+    if (s <= 30) return { key: 'good', label: '个人直租', color: '#16a34a', ink: '#15803d' };
+    if (s <= 55) return { key: 'warn', label: '待判断', color: '#f59e0b', ink: '#b45309' };
+    return { key: 'bad', label: '疑似中介', color: '#ef4444', ink: '#b91c1c' };
+  }
+
+  function checkCount(l) {
+    var c = l.checks || {};
+    return CHECK_ITEMS.filter(function (x) { return c[x.id]; }).length;
+  }
+
+  // 声称步行距离与实际差 1.3 倍、且多出 80m 以上 → 判定不符
+  function metroMismatch(l) {
+    var a = Number(l.metroDist), c = Number(l.metroClaimed);
+    if (!a || !c) return false;
+    return a > c * 1.3 + 80;
+  }
+
+  function normText(s) {
+    return String(s || '').toLowerCase()
+      .replace(/[\s\p{P}\p{S}]/gu, '')
+      .slice(0, 220);
+  }
+  function grams(s) {
+    var set = new Set();
+    for (var i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2));
+    return set;
+  }
+  function similarity(a, b) {
+    var x = grams(normText(a.title + ' ' + a.desc + ' ' + a.note));
+    var y = grams(normText(b.title + ' ' + b.desc + ' ' + b.note));
+    if (!x.size || !y.size) return 0;
+    var inter = 0;
+    x.forEach(function (g) { if (y.has(g)) inter++; });
+    return inter / (x.size + y.size - inter);
+  }
+  function isDup(a, b) {
+    if (a.price && b.price && a.area && b.area && a.price === b.price && a.area === b.area &&
+        a.community && b.community && a.community === b.community) return true;
+    return similarity(a, b) > 0.74;
+  }
+
+  /* ---------------- 同址归组 / 严格对比 ---------------- */
+  function addrNorm(s) {
+    // 只去空格/标点与末尾门牌，保留「小区 / 公寓」等后缀，避免把相邻两栋楼误并成一组
+    return String(s || '').toLowerCase()
+      .replace(/[\s\p{P}\p{S}]/gu, '')
+      .replace(/(\d+号|\d+栋|\d+幢|\d+楼|\d+室|\d+期)$/, '');
+  }
+  function sameAddr(a, b) {
+    if (a.id === b.id) return false;
+    var ka = addrNorm(a.community), kb = addrNorm(b.community);
+    if (ka && kb && ka === kb) return true;
+    if (a.lat != null && b.lat != null) {
+      var d = haversine(a, b);
+      if (d != null && d < 0.12) return true; // 120m 内视为同一地址
+    }
+    return false;
+  }
+  // 同户型下租金差 >15% 或面积差 >10% 视为对不上
+  function isConflict(a, b) {
+    if (!(a.rooms && b.rooms && Number(a.rooms) === Number(b.rooms))) return false;
+    return pctDiff(a.price, b.price) > 0.15 || pctDiff(a.area, b.area) > 0.10;
+  }
+  function computeGroups() {
+    var arr = state.listings;
+    var parent = arr.map(function (_, i) { return i; });
+    function find(x) { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+    function uni(a, b) { a = find(a); b = find(b); if (a !== b) parent[b] = a; }
+    for (var i = 0; i < arr.length; i++) {
+      for (var j = i + 1; j < arr.length; j++) {
+        if (sameAddr(arr[i], arr[j])) uni(i, j);
+      }
+    }
+    var buckets = {};
+    arr.forEach(function (l, idx) {
+      l.addrKey = '';
+      l.addrConflict = false;
+      var r = find(idx);
+      (buckets[r] = buckets[r] || []).push(l);
+    });
+    var groups = [];
+    Object.keys(buckets).forEach(function (r) {
+      var g = buckets[r];
+      if (g.length < 2) return;
+      var key = 'g' + g.map(function (l) { return l.id; }).sort()[0];
+      var conflict = false;
+      for (var i = 0; i < g.length; i++) {
+        for (var j = i + 1; j < g.length; j++) {
+          if (isConflict(g[i], g[j])) {
+            conflict = true;
+            g[i].addrConflict = true;
+            g[j].addrConflict = true;
+          }
+        }
+      }
+      g.forEach(function (l) { l.addrKey = key; });
+      groups.push({ key: key, items: g, conflict: conflict });
+    });
+    return groups;
+  }
+  function peerCount(l) {
+    if (!l.addrKey) return 0;
+    var g = state.groups.filter(function (x) { return x.key === l.addrKey; })[0];
+    return g ? g.items.length : 0;
+  }
+
+  function recompute() {
+    state.listings.sort(function (a, b) { return a.createdAt - b.createdAt; });
+    state.listings.forEach(function (l) { ensureListingMeta(l); scoreListing(l, state.listings); });
+    var kept = [];
+    state.listings.forEach(function (l) { l.dupOf = null; });
+    state.listings.forEach(function (l) {
+      for (var i = 0; i < kept.length; i++) {
+        if (isDup(l, kept[i])) { l.dupOf = kept[i].id; return; }
+      }
+      kept.push(l);
+    });
+    state.groups = computeGroups();
+  }
+
+  function unitPrice(l) { return l.price && l.area ? l.price / l.area : Infinity; }
+
+  /* ---------------- 渲染 ---------------- */
+  function listingText(l) {
+    return String(l.title || '') + ' ' + String(l.desc || '') + ' ' + String(l.note || '') +
+      ' ' + String(l.community || '') + ' ' + String(l.floor || '');
+  }
+  function isShared(l) {
+    return /合租|室友|单间|主卧|次卧|合住/.test(listingText(l));
+  }
+  function nearMetro(l) {
+    var d = Number(l.metroDist) || Number(l.metroClaimed) || 0;
+    return d > 0 && d <= 800;
+  }
+  function matchesNeed(l, key) {
+    if (key === '近地铁') return nearMetro(l);
+    if (key === '整租') return !isShared(l);
+    if (key === '合租') return isShared(l);
+    for (var i = 0; i < TAG_RULES.length; i++) {
+      if (TAG_RULES[i].key === key) return TAG_RULES[i].re.test(listingText(l));
+    }
+    return true;
+  }
+
+  function visible() {
+    var f = state.filters;
+    var arr = state.listings.slice();
+
+    if (f.q) {
+      var q = f.q.toLowerCase();
+      arr = arr.filter(function (l) {
+        return (String(l.title) + ' ' + String(l.desc) + ' ' + String(l.community) + ' ' + String(l.note))
+          .toLowerCase().indexOf(q) >= 0;
+      });
+    }
+    if (f.min !== '' && f.min != null) {
+      var mn = Number(f.min); if (!isNaN(mn)) arr = arr.filter(function (l) { return (l.price || 0) >= mn; });
+    }
+    if (f.max !== '' && f.max != null) {
+      var mx = Number(f.max); if (!isNaN(mx)) arr = arr.filter(function (l) { return (l.price || 0) <= mx; });
+    }
+    if (f.rooms) {
+      arr = arr.filter(function (l) {
+        var r = Number(l.rooms) || 0;
+        return f.rooms === 3 ? r >= 3 : r === f.rooms;
+      });
+    }
+    // 货不对板由单独的开关控制，不受「过滤疑似中介」重复影响
+    if (f.personal) arr = arr.filter(function (l) { return l.bait || (l.agentScore || 0) <= 55; });
+    if (f.noDup) arr = arr.filter(function (l) { return !l.dupOf; });
+    if (f.hideBait) arr = arr.filter(function (l) { return !l.bait; });
+
+    // 一句话找房的条件
+    if (f.needs && f.needs.length) {
+      arr = arr.filter(function (l) {
+        return f.needs.every(function (k) { return matchesNeed(l, k); });
+      });
+    }
+    if (f.layout === 'shared') arr = arr.filter(isShared);
+    else if (f.layout === 'whole') arr = arr.filter(function (l) { return !isShared(l); });
+    if (f.nearMetro) arr = arr.filter(nearMetro);
+
+    var sorters = {
+      new: function (a, b) { return b.createdAt - a.createdAt; },
+      price: function (a, b) { return (a.price || 1e9) - (b.price || 1e9); },
+      unit: function (a, b) { return unitPrice(a) - unitPrice(b); },
+      metro: function (a, b) { return (a.metroDist || 1e9) - (b.metroDist || 1e9); },
+      trust: function (a, b) { return (a.agentScore || 0) - (b.agentScore || 0); }
+    };
+    arr.sort(sorters[f.sort] || sorters.new);
+    return arr;
+  }
+
+  function metaLine(l) {
+    var bits = [];
+    if (l.area) bits.push(l.area + '㎡');
+    if (l.rooms) bits.push(l.rooms + '室');
+    if (l.floor) bits.push(l.floor);
+    if (l.metroDist) bits.push('距' + (l.metroName || '地铁') + ' ' + l.metroDist + 'm');
+    if (l.community) bits.push(l.community);
+    if (state.home && l.lat != null && l.lng != null) {
+      var d = haversine(state.home, l);
+      if (d != null && d < 30) bits.push('距你 ' + (d < 1 ? Math.round(d * 1000) + 'm' : d.toFixed(1) + 'km'));
+    }
+    return bits.join(' · ');
+  }
+
+  function metaHtml(l) {
+    var bits = [];
+    if (l.area) bits.push('<span>' + esc(l.area + '㎡') + '</span>');
+    if (l.rooms) bits.push('<span>' + esc(l.rooms + '室') + '</span>');
+    if (l.floor) bits.push('<span>' + esc(l.floor) + '</span>');
+    if (l.metroDist) bits.push('<span>' + esc('距' + (l.metroName || '地铁') + ' ' + l.metroDist + 'm') + '</span>');
+    if (l.community) {
+      bits.push('<button type="button" class="meta-hood" data-act="hood" data-hood="' + esc(l.community) +
+        '" title="打开小区尽调：价格、口碑标签、平台搜索">' + esc(l.community) + '<em>尽调</em></button>');
+    }
+    if (state.home && l.lat != null && l.lng != null) {
+      var d = haversine(state.home, l);
+      if (d != null && d < 30) {
+        bits.push('<span>' + esc('距你 ' + (d < 1 ? Math.round(d * 1000) + 'm' : d.toFixed(1) + 'km')) + '</span>');
+      }
+    }
+    return bits.join('<span class="dot">·</span>');
+  }
+
+  function chipsHtml(l, interactive) {
+    var t = trustOf(l), out = [];
+    out.push('<span class="chip ' + t.key + '">' + t.label + '</span>');
+    var pc = peerCount(l);
+    if (pc > 1) {
+      var label = '同址 ' + pc + (l.addrConflict ? ' · 待核对' : '');
+      if (interactive) {
+        out.push('<button class="chip ' + (l.addrConflict ? 'bad' : 'cmp') + '" data-act="compare" data-key="' +
+          esc(l.addrKey) + '" title="打开同址严格对比">' + label + '</button>');
+      } else {
+        out.push('<span class="chip ' + (l.addrConflict ? 'bad' : 'cmp') + '">' + label + '</span>');
+      }
+    }
+    if (metroMismatch(l)) {
+      out.push('<span class="chip bad" title="帖子声称 ' + l.metroClaimed + 'm，实测 ' + l.metroDist + 'm">地铁不符</span>');
+    }
+    var ck = checkCount(l);
+    if (ck) out.push('<span class="chip info" title="租房避坑清单完成 ' + ck + '/8">避坑 ' + ck + '/8</span>');
+    var hd = l.community ? state.hoods[String(l.community).trim()] : null;
+    if (hd && hd.risk && hd.risk.length) {
+      out.push('<span class="chip bad" title="小区尽调风险：' + esc(hd.risk.join('、')) + '">小区 ' + hd.risk.length + ' 风险</span>');
+    } else if (hd && hd.good && hd.good.length) {
+      out.push('<span class="chip good" title="小区尽调优点：' + esc(hd.good.join('、')) + '">小区已尽调</span>');
+    }
+    var ac = l.account || {};
+    if (ac.type === 'personal') out.push('<span class="chip good">账号像个人</span>');
+    else if (ac.type === 'rentonly') out.push('<span class="chip bad">只发租帖</span>');
+    else if (Number(ac.posts7) >= 8) out.push('<span class="chip bad">7 日 ' + ac.posts7 + ' 帖</span>');
+    var drop = priceDrop(l);
+    if (drop > 0) {
+      var h = l.priceHistory || [];
+      var prevP = h.length > 1 ? Number(h[h.length - 2].p) : 0;
+      out.push('<span class="chip good" title="上次 ¥' + money(prevP) + ' → 现 ¥' + money(l.price) + '">↓¥' + money(drop) + '</span>');
+    }
+    var vs = VISIT_STATUS[l.visitStatus || ''];
+    if (l.visitStatus && vs) {
+      var vtext = vs.label + (l.visitStatus === 'scheduled' && l.visitAt ? ' ' + fmtVisit(l.visitAt) : '');
+      out.push('<span class="chip ' + vs.chip + '" title="看房进度：' + esc(vs.label) +
+        (l.visitAt ? '｜' + esc(fmtVisit(l.visitAt)) : '') + (l.visitNote ? '｜' + esc(l.visitNote) : '') + '">' +
+        esc(vtext) + '</span>');
+    } else if (l.visitAt) {
+      out.push('<span class="chip info" title="已填看房时间">看房 ' + esc(fmtVisit(l.visitAt)) + '</span>');
+    }
+    var miss = missingFields(l);
+    if (miss.length) {
+      out.push('<span class="chip warn" title="缺少：' + esc(miss.join('、')) + '，建议向房东核实">待核实 ' + miss.length + '</span>');
+    }
+    if (l.dupOf) out.push('<span class="chip dup">疑似重复</span>');
+    if (l.sample) out.push('<span class="chip sample">示例</span>');
+    if (l.starred) out.push('<span class="chip star">已收藏</span>');
+    return out.join('');
+  }
+
+  function cardHtml(l) {
+    var t = trustOf(l);
+    var reason = l.why && l.why.length ? l.why.join('；') : '未发现明显中介话术';
+    var safeUrl = /^https?:\/\//i.test(l.url || '') ? l.url : '';
+    return '' +
+      '<article class="card ' + (l.sample ? 'sample' : '') + (l.bait ? ' bait' : '') + '" data-id="' + esc(l.id) + '">' +
+        '<div class="card-top">' +
+          '<div class="price"><span class="cur">¥</span>' + money(l.price) + '<span>/月</span></div>' +
+          '<div class="chips">' + chipsHtml(l, true) + '</div>' +
+        '</div>' +
+        '<h3>' + esc(l.title || '未命名房源') + '</h3>' +
+        '<div class="meta">' + metaHtml(l) + '<span class="dot">·</span><span>' + esc(SOURCES[l.source] || '其他') + '</span></div>' +
+        '<div class="card-foot">' +
+          '<span class="up" title="中介味评分：' + (l.agentScore || 0) + '｜' + esc(reason) + '">' +
+            (l.area ? '¥' + Math.round(unitPrice(l)) + '/㎡' : '—') +
+          '</span>' +
+          '<div class="card-btns">' +
+            '<button data-act="star" class="' + (l.starred ? 'on' : '') + '" title="收藏">' + (l.starred ? '★' : '☆') + '</button>' +
+            '<button data-act="focus" title="地图定位">定位</button>' +
+            '<button data-act="edit" title="编辑">编辑</button>' +
+            (safeUrl ? '<a href="' + esc(safeUrl) + '" target="_blank" rel="noopener noreferrer">原帖</a>' : '') +
+            '<button data-act="del" title="删除">删除</button>' +
+          '</div>' +
+        '</div>' +
+      '</article>';
+  }
+
+  function renderStats() {
+    var all = state.listings;
+    var g = 0, w = 0, b = 0, prices = [], samples = 0;
+    all.forEach(function (l) {
+      var k = trustOf(l).key;
+      if (k === 'good') g++; else if (k === 'warn') w++; else b++;
+      if (l.price) prices.push(l.price);
+      if (l.sample) samples++;
+    });
+    var baits = all.filter(function (l) { return l.bait; }).length;
+    var med = prices.length ? Math.round(median(prices)) : 0;
+    var html = '<span>共 <b>' + all.length + '</b> 条</span>' +
+      '<span class="g">个人 <b>' + g + '</b></span>' +
+      '<span class="w">待判断 <b>' + w + '</b></span>' +
+      '<span class="b">疑似中介 <b>' + b + '</b></span>';
+    if (baits) html += '<span class="b">货不对板 <b>' + baits + '</b></span>';
+    if (med) html += '<span>中位 <b>¥' + money(med) + '</b></span>';
+    if (samples) html += '<span style="color:#a97c2f">含示例 ' + samples + '</span>';
+    $('#stats').innerHTML = html;
+  }
+
+  function renderAlert() {
+    var gs = (state.groups || []).filter(function (g) {
+      return g.conflict && g.items.some(function (l) { return !l.bait; });
+    });
+    var el = $('#alertStrip');
+    if (!gs.length) { el.hidden = true; return; }
+    el.hidden = false;
+    $('#alertText').textContent = gs.length + ' 组同址房源价格 / 面积对不上，先对比再决定';
+    $('#btnAlertCmp').setAttribute('data-key', gs[0].key);
+    placeAlert();
+  }
+
+  /* ---------------- 同址对比弹窗 ---------------- */
+  function conflictNote(a, b) {
+    if (!(a.rooms && b.rooms && Number(a.rooms) === Number(b.rooms))) return '';
+    var bits = [];
+    if (pctDiff(a.price, b.price) > 0.15) bits.push('租金差 ' + Math.round(pctDiff(a.price, b.price) * 100) + '%');
+    if (pctDiff(a.area, b.area) > 0.10) bits.push('面积差 ' + Math.round(pctDiff(a.area, b.area) * 100) + '%');
+    return bits.join('、');
+  }
+  function acctCell(l) {
+    var a = l.account || {};
+    if (!a.name && a.posts7 == null && (!a.type || a.type === 'unknown')) {
+      return '<span style="color:#a49d8e">未填</span>';
+    }
+    var bits = [];
+    if (a.name) bits.push(esc(a.name));
+    if (a.posts7 != null && a.posts7 !== '') bits.push('7 日 ' + a.posts7 + ' 帖');
+    if (a.type && a.type !== 'unknown') bits.push(esc(ACCT_TYPES[a.type]));
+    return bits.join(' · ') || '—';
+  }
+  function metroCell(l) {
+    if (l.metroDist) {
+      return esc(l.metroName || '地铁') + ' ' + l.metroDist + 'm' +
+        (metroMismatch(l) ? ' <span class="chip bad">不符</span>' : '');
+    }
+    if (l.metroClaimed) return '<span style="color:#a49d8e">仅声称 ' + l.metroClaimed + 'm</span>';
+    return '<span style="color:#a49d8e">—</span>';
+  }
+  function devTd(val, med, limit, text) {
+    if (!val || !med || !isFinite(val)) return '<td>' + text + '</td>';
+    var d = Math.abs(val - med) / med;
+    if (d > limit) return '<td class="dev" title="偏离本组中位 ' + Math.round(d * 100) + '%">' + text + '</td>';
+    return '<td>' + text + '</td>';
+  }
+  function buildCompare(g) {
+    if (!g) return;
+    var items = g.items.slice().sort(function (a, b) { return (a.price || 0) - (b.price || 0); });
+    var prices = items.map(function (l) { return Number(l.price) || 0; }).filter(Boolean);
+    var areas = items.map(function (l) { return Number(l.area) || 0; }).filter(Boolean);
+    var units = items.map(unitPrice).filter(function (x) { return isFinite(x); });
+    var pmed = median(prices), amed = median(areas), umed = median(units);
+    // 两条对比时，中位偏离是两方差值的一半；阈值同步减半，效果等同两方差 15% / 10%
+    var half = items.length <= 2 ? .5 : 1;
+
+    var head = '<tr><th>对比项</th>' + items.map(function (l, i) {
+      return '<th>房源 ' + (i + 1) + (l.bait ? ' · 已排除' : '') + '</th>';
+    }).join('') + '</tr>';
+    function row(label, cells) { return '<tr><th>' + label + '</th>' + cells + '</tr>'; }
+    var rows = '';
+    rows += row('标题', items.map(function (l) {
+      return '<td class="cmp-title">' + esc((l.title || '未命名').slice(0, 44)) + '</td>';
+    }).join(''));
+    rows += row('来源', items.map(function (l) {
+      return '<td>' + esc(SOURCES[l.source] || '其他') + '</td>';
+    }).join(''));
+    rows += row('租金', items.map(function (l) {
+      return devTd(Number(l.price) || 0, pmed, .15 * half, '¥' + money(l.price));
+    }).join(''));
+    rows += row('面积', items.map(function (l) {
+      return devTd(Number(l.area) || 0, amed, .10 * half, l.area ? l.area + '㎡' : '—');
+    }).join(''));
+    rows += row('单价', items.map(function (l) {
+      var u = unitPrice(l);
+      return devTd(isFinite(u) ? u : 0, umed, .15 * half, isFinite(u) ? '¥' + Math.round(u) + '/㎡' : '—');
+    }).join(''));
+    rows += row('户型 / 楼层', items.map(function (l) {
+      return '<td>' + esc((l.rooms ? l.rooms + '室' : '—') + ' · ' + (l.floor || '—')) + '</td>';
+    }).join(''));
+    rows += row('地铁', items.map(function (l) { return '<td>' + metroCell(l) + '</td>'; }).join(''));
+    rows += row('账号', items.map(function (l) { return '<td>' + acctCell(l) + '</td>'; }).join(''));
+    rows += row('可信度', items.map(function (l) {
+      var t = trustOf(l);
+      return '<td><span class="chip ' + t.key + '">' + t.label + '</span></td>';
+    }).join(''));
+    rows += row('操作', items.map(function (l) {
+      var safe = /^https?:\/\//i.test(l.url || '') ? l.url : '';
+      return '<td><div class="cmp-btns">' +
+        '<button class="mini-btn" data-cmp="focus" data-id="' + esc(l.id) + '">定位</button>' +
+        (safe ? '<a class="mini-btn" href="' + esc(safe) + '" target="_blank" rel="noopener noreferrer">原帖</a>' : '') +
+        (l.bait
+          ? '<button class="mini-btn" data-cmp="unbait" data-id="' + esc(l.id) + '">恢复收录</button>'
+          : '<button class="mini-btn danger" data-cmp="bait" data-id="' + esc(l.id) + '">标记货不对板</button>') +
+        '</div></td>';
+    }).join(''));
+
+    $('#cmpBody').innerHTML = '<table><thead>' + head + '</thead><tbody>' + rows + '</tbody></table>';
+
+    var notes = [];
+    for (var i = 0; i < g.items.length; i++) {
+      for (var j = i + 1; j < g.items.length; j++) {
+        var n = conflictNote(g.items[i], g.items[j]);
+        if (n && notes.indexOf(n) < 0) notes.push(n);
+      }
+    }
+    var addr = g.items.map(function (l) { return l.community; }).filter(Boolean)[0] || '坐标 120m 内';
+    var extra = g.items.some(function (l) { return l.bait; }) ? ' · 含已判「货不对板」' : '';
+    $('#cmpNote').innerHTML = '<b>' + esc(addr) + '</b> · ' + items.length + ' 条同址' + extra + '<br>' +
+      (notes.length
+        ? '发现同户型差异：' + esc(notes.join('；')) + '。红色为组内差异超过租金 15% / 面积 10% 的项。'
+        : '这组地址未发现明显的租金 / 面积矛盾，重点核对楼层、朝向和图片是否同一套。');
+  }
+  function openCompare(key) {
+    var g = (state.groups || []).filter(function (x) { return x.key === key; })[0];
+    if (!g) { toast('这组同址房源已不存在'); return; }
+    state.cmpKey = key;
+    buildCompare(g);
+    $('#cmpDialog').classList.add('open');
+    $('#cmpDialog').setAttribute('aria-hidden', 'false');
+    syncScrim();
+  }
+  function closeCompare() {
+    if ($('#cmpDialog').contains(document.activeElement)) document.activeElement.blur();
+    $('#cmpDialog').classList.remove('open');
+    $('#cmpDialog').setAttribute('aria-hidden', 'true');
+    syncScrim();
+  }
+
+  function renderList() {
+    var arr = visible();
+    $('#listCount').textContent = arr.length + ' 条房源' +
+      (arr.length !== state.listings.length ? '（已筛选 / 共 ' + state.listings.length + '）' : '');
+    if (!arr.length) {
+      $('#list').innerHTML = '<div class="empty"><b>还没有房源</b>' +
+        (state.listings.length ? '当前筛选条件下没有结果，放宽租金或关掉「过滤疑似中介」。' :
+          '从上面四个平台找几套，把帖子粘进「添加房源」。<br>想先看效果，点「载入示例」。') + '</div>';
+      return;
+    }
+    $('#list').innerHTML = arr.map(cardHtml).join('');
+  }
+
+  function renderPins() {
+    pinLayer.clearLayers();
+    if (state.layer === 'heat') return;
+    visible().forEach(function (l) {
+      if (l.lat == null || l.lng == null) return;
+      var t = trustOf(l);
+      var m = L.circleMarker([l.lat, l.lng], {
+        radius: l.starred ? 9 : 7.5,
+        color: '#fff', weight: 2,
+        fillColor: t.color, fillOpacity: .95
+      });
+      m.bindPopup(
+        '<div class="pop">' +
+          '<div class="pop-price">¥' + money(l.price) + '<span>/月</span></div>' +
+          '<div class="pop-title">' + esc(l.title || '未命名房源') + '</div>' +
+          '<div class="pop-meta">' + esc(metaLine(l)) + '</div>' +
+          '<div class="pop-chips">' + chipsHtml(l) + '</div>' +
+          (/^https?:\/\//i.test(l.url || '') ?
+            '<a class="pop-link" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">打开原帖 ↗</a>' : '') +
+        '</div>', { closeButton: true, offset: [0, -2] });
+      m._listingId = l.id;
+      m.addTo(pinLayer);
+    });
+  }
+
+  function renderHeat() {
+    if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+    if (state.layer === 'pins') return;
+    var pts = visible().filter(function (l) { return l.lat != null && l.lng != null; })
+      .map(function (l) {
+        var s = l.agentScore == null ? 30 : l.agentScore;
+        var w = s <= 30 ? 1 : s <= 55 ? 0.55 : 0.12;
+        if (l.starred) w += 0.35;
+        return [l.lat, l.lng, w];
+      });
+    if (!pts.length) return;
+    heatLayer = L.heatLayer(pts, {
+      radius: 40, blur: 26, maxZoom: 15, minOpacity: .32,
+      gradient: { 0.12: '#1d4ed8', 0.34: '#06b6d4', 0.52: '#22c55e', 0.74: '#f59e0b', 1: '#ef4444' }
+    }).addTo(map);
+  }
+
+  function render() {
+    renderStats();
+    renderAlert();
+    renderNeedBar();
+    renderList();
+    renderPins();
+    renderHeat();
+    drawFocusOverlay();
+  }
+
+  /* ---------------- 步行圈 / 设施图层 ---------------- */
+  var ringLayer, amenityLayer;
+  function drawFocusOverlay() {
+    if (!map) return;
+    if (!ringLayer) ringLayer = L.layerGroup().addTo(map);
+    if (!amenityLayer) amenityLayer = L.layerGroup().addTo(map);
+    ringLayer.clearLayers();
+    amenityLayer.clearLayers();
+    var l = state.listings.filter(function (x) { return x.id === state.focusId; })[0];
+    if (!l || l.lat == null) return;
+
+    if (state.showRings) {
+      [300, 600, 1200].forEach(function (r) {
+        L.circle([l.lat, l.lng], {
+          radius: r, color: '#0f766e', weight: 1, opacity: .38,
+          fillColor: '#0f766e', fillOpacity: .02, dashArray: '4 5', interactive: false
+        }).addTo(ringLayer);
+        L.marker([l.lat + r / 111320, l.lng], {
+          icon: L.divIcon({ className: '', html: '<div class="ring-label">' + r + 'm</div>', iconSize: [1, 1] }),
+          interactive: false, keyboard: false
+        }).addTo(ringLayer);
+      });
+    }
+
+    (l.amenities || []).forEach(function (a) {
+      if (a.lat == null || a.lng == null) return;
+      L.polyline([[l.lat, l.lng], [a.lat, a.lng]], {
+        color: '#0f766e', weight: 1, opacity: .5, dashArray: '3 5', interactive: false
+      }).addTo(amenityLayer);
+      L.circleMarker([a.lat, a.lng], {
+        radius: 4, color: '#fff', weight: 1.5, fillColor: '#0f766e', fillOpacity: 1
+      }).bindTooltip(AMENITY_LABEL[a.kind] + (a.name && a.name !== AMENITY_LABEL[a.kind] ? ' · ' + esc(a.name) : '') +
+        ' · ' + a.dist + 'm（步行约 ' + walkMin(a.dist) + ' 分钟）', { direction: 'top' }).addTo(amenityLayer);
+    });
+  }
+
+  function focusListing(id, openPopup) {
+    var l = state.listings.filter(function (x) { return x.id === id; })[0];
+    if (!l || l.lat == null) { toast('这条房源还没有位置，编辑一下或用「点选」定位'); return; }
+    state.focusId = id;
+    if (state.layer === 'heat') {
+      state.layer = 'both';
+      $$('#layers button').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-v') === 'both'); });
+      renderPins(); renderHeat();
+    }
+    map.flyTo([l.lat, l.lng], Math.max(map.getZoom(), 16), { duration: .7 });
+    drawFocusOverlay();
+    if (openPopup) {
+      setTimeout(function () {
+        pinLayer.eachLayer(function (m) {
+          if (m._listingId === id) m.openPopup();
+        });
+      }, 750);
+    }
+  }
+
+  /* ---------------- 一句话找房 ---------------- */
+  function percentile(arr, q) {
+    if (!arr.length) return 0;
+    var s = arr.slice().sort(function (a, b) { return a - b; });
+    var pos = (s.length - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos);
+    return Math.round(s[lo] + (s[hi] - s[lo]) * (pos - lo));
+  }
+
+  function askMatch(l, p) {
+    var price = Number(l.price) || 0;
+    if (p.min != null && price < p.min) return false;
+    if (p.max != null && (price <= 0 || price > p.max)) return false;
+    if (p.rooms) {
+      var r = Number(l.rooms) || 0;
+      if (p.rooms === 3 ? r < 3 : r !== p.rooms) return false;
+    }
+    if (p.layout === 'shared' && !isShared(l)) return false;
+    if (p.layout === 'whole' && isShared(l)) return false;
+    if (p.nearMetro && !nearMetro(l)) return false;
+    if (p.noAgent && (l.agentScore || 0) > 55) return false;
+    if (p.needs.length) {
+      var ok = p.needs.every(function (k) { return matchesNeed(l, k); });
+      if (!ok) return false;
+    }
+    return true;
+  }
+
+  function parseAsk(raw) {
+    var t = String(raw || '').replace(/\s+/g, ' ').trim();
+    var p = { min: null, max: null, rooms: 0, needs: [], layout: '', nearMetro: false, noAgent: false, hit: [] };
+    if (!t) return p;
+    var m;
+
+    // 租金区间：3000-5000 / 3-5k / 3000到5000
+    m = t.match(/(\d+(?:\.\d+)?)\s*[kK千]?\s*[-~～到至]\s*(\d+(?:\.\d+)?)\s*[kK千]?/);
+    if (m) {
+      var a = Number(m[1]), b = Number(m[2]);
+      if (/[kK千]/.test(m[0]) || (a < 100 && b < 100)) {
+        if (a < 100) a *= 1000;
+        if (b < 100) b *= 1000;
+      }
+      p.min = Math.round(Math.min(a, b));
+      p.max = Math.round(Math.max(a, b));
+      p.hit.push('¥' + money(p.min) + '–' + money(p.max));
+    } else {
+      // 4千 / 4.5k
+      m = t.match(/(\d+(?:\.\d+)?)\s*[kK千]/);
+      if (m) {
+        p.max = Math.round(Number(m[1]) * 1000);
+        p.hit.push('≤ ¥' + money(p.max));
+      } else {
+        m = t.match(/(?:预算|租金|月租|房租|不超过|最多|控制在)\s*[:：]?\s*(\d{3,5})/);
+        if (m) {
+          p.max = Number(m[1]);
+          p.hit.push('≤ ¥' + money(p.max));
+        } else {
+          m = t.match(/(\d{3,5})\s*(?:元|块)?\s*(?:以内|以下|封顶)/);
+          if (m) {
+            p.max = Number(m[1]);
+            p.hit.push('≤ ¥' + money(p.max));
+          }
+        }
+      }
+    }
+
+    // 户型
+    var CN = { '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
+    m = t.match(/([1-9一二两三四五六七八九])\s*(?:居|室|房)/);
+    if (m) {
+      var rn = CN[m[1]] || Number(m[1]);
+      if (rn >= 1 && rn <= 9) { p.rooms = rn; p.hit.push(rn + ' 居'); }
+    }
+    if (!p.rooms && /单间|开间|一室户/.test(t)) { p.rooms = 1; p.hit.push('1 居'); }
+
+    // 整租 / 合租
+    if (/合租|找室友|单间|主卧|次卧|合住/.test(t)) { p.layout = 'shared'; p.hit.push('合租'); }
+    else if (/整租|整房|整套/.test(t)) { p.layout = 'whole'; p.hit.push('整租'); }
+
+    // 近地铁 / 只看个人
+    if (/近地铁|地铁房|地铁口|地铁沿线|离地铁近/.test(t)) { p.nearMetro = true; p.hit.push('近地铁'); }
+    if (/不要中介|无中介|非中介|个人房源|房东直租|不要中介费/.test(t)) { p.noAgent = true; p.hit.push('只看个人'); }
+
+    // 文本能验证的软标签
+    TAG_RULES.forEach(function (r) {
+      if (r.re.test(t) && p.needs.indexOf(r.key) < 0) { p.needs.push(r.key); p.hit.push(r.key); }
+    });
+    return p;
+  }
+
+  function askPreviewHtml(p) {
+    var f = state.filters;
+    var all = state.listings.filter(function (l) {
+      if (f.personal && (l.agentScore || 0) > 55) return false;
+      if (f.hideBait && l.bait) return false;
+      if (f.noDup && l.dupOf) return false;
+      return true;
+    });
+    var conds = [];
+    if (p.min != null) conds.push({ label: '≥ ¥' + money(p.min), n: all.filter(function (l) { return (Number(l.price) || 0) >= p.min; }).length });
+    if (p.max != null) conds.push({ label: '≤ ¥' + money(p.max), n: all.filter(function (l) { var v = Number(l.price) || 0; return v > 0 && v <= p.max; }).length });
+    if (p.rooms) {
+      conds.push({
+        label: p.rooms === 3 ? '3 居+' : p.rooms + ' 居',
+        n: all.filter(function (l) { var r = Number(l.rooms) || 0; return p.rooms === 3 ? r >= 3 : r === p.rooms; }).length
+      });
+    }
+    if (p.layout) conds.push({ label: p.layout === 'shared' ? '合租' : '整租', n: all.filter(function (l) { return p.layout === 'shared' ? isShared(l) : !isShared(l); }).length });
+    if (p.nearMetro) conds.push({ label: '近地铁', n: all.filter(nearMetro).length });
+    if (p.noAgent) conds.push({ label: '只看个人', n: all.filter(function (l) { return (l.agentScore || 0) <= 55; }).length });
+    p.needs.forEach(function (k) {
+      conds.push({ label: k, n: all.filter(function (l) { return matchesNeed(l, k); }).length });
+    });
+    if (!conds.length) {
+      return '<span class="ask-hint">没识别出条件。可以写「4000以内 一居 朝南 近地铁」，或点上面的示例。</span>';
+    }
+    var matched = all.filter(function (l) { return askMatch(l, p); });
+    var html = '<div class="ask-line">识别到 ' + conds.length + ' 个条件 · 匹配 ' + matched.length + ' / ' + all.length + ' 条</div><div class="conds">';
+    conds.forEach(function (c) {
+      html += '<span class="cond' + (c.n ? '' : ' zero') + '">' + esc(c.label) + ' <b>' + c.n + '</b></span>';
+    });
+    html += '</div>';
+    if (!all.length) html += '<span class="ask-hint">还没有房源，先「载入示例」或粘贴几条真实房源。</span>';
+    else if (!matched.length) html += '<span class="ask-hint">按这组条件会筛到 0 条，去掉一个再试；点「应用筛选」前列表不会变化。</span>';
+    else html += '<span class="ask-hint">例如：' + matched.slice(0, 2).map(function (l) { return esc(String(l.title || '未命名').slice(0, 26)); }).join(' / ') + '</span>';
+    var hidden = state.listings.length - all.length;
+    if (hidden > 0) html += '<span class="ask-hint">已按当前开关排除 ' + hidden + ' 条疑似中介 / 重复 / 货不对板。</span>';
+    return html;
+  }
+
+  function syncFilterUI() {
+    var f = state.filters;
+    $('#fMin').value = f.min;
+    $('#fMax').value = f.max;
+    $$('#fRooms button').forEach(function (b) {
+      b.classList.toggle('on', Number(b.getAttribute('data-v')) === (Number(f.rooms) || 0));
+    });
+    $('#fPersonal').classList.toggle('on', !!f.personal);
+    $('#fNoDup').classList.toggle('on', !!f.noDup);
+    $('#fBait').classList.toggle('on', !!f.hideBait);
+    $('#fQ').value = f.q || '';
+  }
+
+  function renderNeedBar() {
+    var f = state.filters, el = $('#needBar'), chips = [];
+    if (f.layout === 'shared') chips.push({ k: 'layout', label: '合租' });
+    else if (f.layout === 'whole') chips.push({ k: 'layout', label: '整租' });
+    if (f.nearMetro) chips.push({ k: 'near', label: '近地铁' });
+    (f.needs || []).forEach(function (k) { chips.push({ k: 'need:' + k, label: k }); });
+    if (f.min !== '' || f.max !== '') {
+      var lab;
+      if (f.min !== '' && f.max !== '') lab = '¥' + money(f.min) + '–' + money(f.max);
+      else if (f.max !== '') lab = '≤ ¥' + money(f.max);
+      else lab = '≥ ¥' + money(f.min);
+      chips.push({ k: 'budget', label: lab });
+    }
+    if (f.rooms) chips.push({ k: 'rooms', label: (f.rooms === 3 ? '3 居+' : f.rooms + ' 居') });
+    if (!chips.length) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = '<span class="nb-label">一句话条件</span>' +
+      chips.map(function (c) {
+        return '<span class="need-chip">' + esc(c.label) +
+          '<button type="button" data-need="' + esc(c.k) + '" aria-label="移除 ' + esc(c.label) + '">×</button></span>';
+      }).join('') +
+      '<button type="button" class="link-btn nb-clear" id="btnClearNeeds">清空</button>';
+  }
+
+  function openAsk() {
+    $('#askPreview').innerHTML = $('#askText').value.trim()
+      ? askPreviewHtml(parseAsk($('#askText').value))
+      : '<span class="ask-hint">写成一句话后，这里会显示识别到的条件和匹配条数。</span>';
+    $('#askDialog').classList.add('open');
+    $('#askDialog').setAttribute('aria-hidden', 'false');
+    syncScrim();
+    setTimeout(function () {
+      if ($('#askDialog').classList.contains('open')) $('#askText').focus();
+    }, 220);
+  }
+  function closeAsk() {
+    if ($('#askDialog').contains(document.activeElement)) document.activeElement.blur();
+    $('#askDialog').classList.remove('open');
+    $('#askDialog').setAttribute('aria-hidden', 'true');
+    syncScrim();
+  }
+
+  function applyAsk() {
+    var p = parseAsk($('#askText').value);
+    if (!p.hit.length) { toast('没识别出条件，换个写法试试'); return; }
+    var f = state.filters;
+    f.min = p.min != null ? String(p.min) : '';
+    f.max = p.max != null ? String(p.max) : '';
+    f.rooms = p.rooms || 0;
+    f.needs = p.needs.slice();
+    f.layout = p.layout;
+    f.nearMetro = p.nearMetro;
+    f.q = '';
+    if (p.noAgent) { f.personal = true; f.hideBait = true; }
+    $('#askText').value = p.hit.join(' · ');
+    closeAsk();
+    syncFilterUI();
+    render();
+    var n = visible().length;
+    toast(n ? '已按这句话筛选：' + n + ' 条' : '条件已应用，但当前 0 条；去「筛选」里放宽一下');
+  }
+
+  /* ---------------- 小区尽调 ---------------- */
+  function hoodTagBtn(key, on, kind) {
+    return '<button type="button" class="' + (on ? 'on' : '') + '" data-tag="' + esc(key) +
+      '" data-kind="' + kind + '">' + esc(key) + '</button>';
+  }
+
+  function openHood(name) {
+    var com = String(name || '').trim();
+    if (!com) return;
+    state.hoodEditing = com;
+    var items = state.listings.filter(function (l) { return String(l.community || '').trim() === com; });
+    var prices = items.map(function (l) { return Number(l.price) || 0; }).filter(Boolean);
+    var units = items.map(unitPrice).filter(function (x) { return isFinite(x); });
+    var med = prices.length ? Math.round(median(prices)) : 0;
+    var umed = units.length ? Math.round(median(units)) : 0;
+    var personal = items.filter(function (l) { return (l.agentScore || 0) <= 55; }).length;
+    var riskN = items.filter(function (l) { return l.bait; }).length;
+    var conflict = items.filter(function (l) { return l.addrConflict; }).length;
+
+    $('#hoodTitle').textContent = com + ' · 小区尽调';
+    $('#hoodSub').innerHTML = items.length
+      ? '本机有 <b>' + items.length + '</b> 条该小区房源' +
+        (med ? '，中位租金 <b>¥' + money(med) + '/月</b>' : '') +
+        (umed ? '，中位单价 <b>¥' + umed + '/㎡</b>' : '') +
+        '。再去平台补口碑，回来点风险标签。'
+      : '还没有该小区的房源数据。可以先去平台搜口碑，看到房后再回来补标签和备注。';
+
+    var cards = [
+      ['已录房源', items.length + ' 条'],
+      ['中位租金', med ? '¥' + money(med) : '—'],
+      ['中位单价', umed ? '¥' + umed + '/㎡' : '—'],
+      ['个人直租', personal + ' 条'],
+      ['货不对板', riskN + ' 条'],
+      ['同址待核对', conflict + ' 条']
+    ];
+    $('#hoodStats').innerHTML = cards.map(function (c) {
+      return '<div class="hood-stat"><span>' + c[0] + '</span><b>' + esc(c[1]) + '</b></div>';
+    }).join('');
+
+    var city = state.cityName || '上海';
+    var q = city + ' ' + com;
+    var links = [
+      { name: '小红书避雷', color: '#ef4444', url: 'https://www.xiaohongshu.com/search_result?keyword=' + encodeURIComponent(q + ' 租房 避雷') },
+      { name: '豆瓣租房', color: '#16a34a', url: 'https://www.douban.com/group/search?cat=1013&q=' + encodeURIComponent(q + ' 租房') },
+      { name: '抖音实拍', color: '#111827', url: 'https://www.douyin.com/search/' + encodeURIComponent(q + ' 租房') },
+      { name: '贝壳小区', color: '#2563eb', url: 'https://' + state.city + '.ke.com/xiaoqu/rs' + encodeURIComponent(com) + '/' },
+      { name: '高德看看', color: '#f59e0b', url: 'https://uri.amap.com/search?keyword=' + encodeURIComponent(com) + '&city=' + encodeURIComponent(city) }
+    ];
+    $('#hoodLinks').innerHTML = links.map(function (l) {
+      return '<a href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer" title="新窗口打开：' + esc(l.name) + '">' +
+        '<i style="background:' + l.color + '"></i>' + esc(l.name) + '</a>';
+    }).join('');
+
+    var h = state.hoods[com] || { good: [], risk: [], note: '' };
+    $('#hoodGood').innerHTML = HOOD_GOOD.map(function (k) {
+      return hoodTagBtn(k, (h.good || []).indexOf(k) >= 0, 'good');
+    }).join('');
+    $('#hoodRisk').innerHTML = HOOD_RISK.map(function (k) {
+      return hoodTagBtn(k, (h.risk || []).indexOf(k) >= 0, 'risk');
+    }).join('');
+    $('#hoodNote').value = h.note || '';
+
+    $('#hoodDialog').classList.add('open');
+    $('#hoodDialog').setAttribute('aria-hidden', 'false');
+    syncScrim();
+  }
+
+  function closeHood() {
+    if ($('#hoodDialog').contains(document.activeElement)) document.activeElement.blur();
+    $('#hoodDialog').classList.remove('open');
+    $('#hoodDialog').setAttribute('aria-hidden', 'true');
+    state.hoodEditing = null;
+    syncScrim();
+  }
+
+  function saveHood() {
+    var com = state.hoodEditing;
+    if (!com) return;
+    var good = $$('#hoodGood button.on').map(function (b) { return b.getAttribute('data-tag'); });
+    var risk = $$('#hoodRisk button.on').map(function (b) { return b.getAttribute('data-tag'); });
+    state.hoods[com] = { good: good, risk: risk, note: $('#hoodNote').value.trim(), updatedAt: Date.now() };
+    save();
+    closeHood();
+    render();
+    toast('已保存「' + com + '」的尽调');
+  }
+
+  /* ---------------- 行情速览 ---------------- */
+  function priceBuckets(prices, n) {
+    if (!prices.length) return [];
+    var min = Math.min.apply(null, prices), max = Math.max.apply(null, prices);
+    if (min === max) return [{ min: min, max: max, n: prices.length }];
+    var step = (max - min) / n, arr = [];
+    for (var i = 0; i < n; i++) {
+      arr.push({
+        min: Math.round(min + step * i),
+        max: i === n - 1 ? max : Math.round(min + step * (i + 1)),
+        n: 0
+      });
+    }
+    prices.forEach(function (p) {
+      var idx = Math.min(n - 1, Math.floor((p - min) / step));
+      arr[idx].n++;
+    });
+    return arr;
+  }
+
+  function openMarket() {
+    var arr = visible();
+    var prices = arr.map(function (l) { return Number(l.price) || 0; }).filter(Boolean);
+    var units = arr.map(unitPrice).filter(function (x) { return isFinite(x); });
+    var med = prices.length ? Math.round(median(prices)) : 0;
+    var p25 = percentile(prices, .25), p75 = percentile(prices, .75);
+    var umed = units.length ? Math.round(median(units)) : 0;
+    var personal = arr.filter(function (l) { return (l.agentScore || 0) <= 55; }).length;
+    var bait = arr.filter(function (l) { return l.bait; }).length;
+    var metro = arr.filter(nearMetro).length;
+    var area = arr.filter(function (l) { return Number(l.area) > 0; }).length;
+
+    $('#marketSub').innerHTML = '基于当前筛选的 <b>' + arr.length + '</b> 条房源' +
+      (state.listings.length !== arr.length ? '（共录入 ' + state.listings.length + ' 条）' : '') +
+      '，只算本机数据。';
+    var stats = [
+      ['样本', arr.length + ' 条'],
+      ['中位租金', med ? '¥' + money(med) : '—'],
+      ['中间 50%', prices.length ? '¥' + money(p25) + '–' + money(p75) : '—'],
+      ['中位单价', umed ? '¥' + umed + '/㎡' : '—'],
+      ['个人直租', personal + ' 条'],
+      ['货不对板', bait + ' 条'],
+      ['近地铁 ≤800m', metro + ' 条'],
+      ['有面积', area + ' 条']
+    ];
+    $('#marketStats').innerHTML = stats.map(function (s) {
+      return '<div class="market-stat"><span>' + s[0] + '</span><b>' + esc(s[1]) + '</b></div>';
+    }).join('');
+
+    var bn = Math.min(8, Math.max(3, Math.round(Math.sqrt(prices.length) * 2)));
+    var buckets = priceBuckets(prices, bn);
+    var maxN = Math.max.apply(null, buckets.map(function (b) { return b.n; }).concat([1]));
+    if (buckets.length) {
+      $('#marketChart').innerHTML = '<div class="hist">' + buckets.map(function (b) {
+        var h = Math.round(b.n / maxN * 100);
+        return '<button type="button" class="hist-col" data-mk="' + b.min + '-' + b.max +
+          '" title="¥' + money(b.min) + '–' + money(b.max) + ' · ' + b.n + ' 条，点击筛选">' +
+          '<span class="hist-n">' + (b.n || '') + '</span>' +
+          '<i style="height:' + Math.max(4, h) + '%"></i></button>';
+      }).join('') + '</div><div class="hist-axis"><span>¥' + money(Math.min.apply(null, prices)) +
+        '</span><span>¥' + money(Math.max.apply(null, prices)) + '</span></div>';
+    } else {
+      $('#marketChart').innerHTML = '<div class="ask-preview"><span class="ask-hint">当前没有可统计的租金数据。</span></div>';
+    }
+
+    var byCom = {};
+    arr.forEach(function (l) {
+      var c = String(l.community || '').trim();
+      if (c) (byCom[c] = byCom[c] || []).push(l);
+    });
+    var rows = Object.keys(byCom).map(function (c) {
+      var items = byCom[c];
+      var ps = items.map(function (l) { return Number(l.price) || 0; }).filter(Boolean);
+      var us = items.map(unitPrice).filter(function (x) { return isFinite(x); });
+      return { c: c, n: items.length, med: ps.length ? Math.round(median(ps)) : 0, unit: us.length ? Math.round(median(us)) : 0 };
+    }).sort(function (a, b) { return b.n - a.n || a.med - b.med; }).slice(0, 8);
+    $('#marketTable').innerHTML = rows.length
+      ? '<div class="mt-row head"><span>小区</span><b>条数</b><b>中位租金</b><b>单价</b></div>' +
+        rows.map(function (r) {
+          return '<button type="button" class="mt-row" data-com="' + esc(r.c) + '" title="按「' + esc(r.c) + '」筛选">' +
+            '<span class="mt-com">' + esc(r.c) + '</span><span class="mt-n">' + r.n + '</span>' +
+            '<b>' + (r.med ? '¥' + money(r.med) : '—') + '</b>' +
+            '<span class="mt-n">' + (r.unit ? '¥' + r.unit : '—') + '</span></button>';
+        }).join('')
+      : '<div class="mt-row"><span class="mt-com">还没有小区数据</span></div>';
+
+    $('#marketDialog').classList.add('open');
+    $('#marketDialog').setAttribute('aria-hidden', 'false');
+    syncScrim();
+  }
+
+  function closeMarket() {
+    if ($('#marketDialog').contains(document.activeElement)) document.activeElement.blur();
+    $('#marketDialog').classList.remove('open');
+    $('#marketDialog').setAttribute('aria-hidden', 'true');
+    syncScrim();
+  }
+
+  /* ---------------- 看房计划 ---------------- */
+  function planItems() {
+    return state.listings.filter(function (l) { return l.visitStatus || l.visitAt; });
+  }
+  function planRank(l) {
+    if (l.visitStatus === 'scheduled') return 0;
+    if (l.visitStatus === 'contacted') return 1;
+    if (!l.visitStatus && l.visitAt) return 0;
+    if (l.visitStatus === 'viewed') return 2;
+    if (l.visitStatus === 'dropped') return 3;
+    return 4;
+  }
+  function renderPlan() {
+    var items = planItems();
+    var now = Date.now();
+    var soon = now + 7 * 864e5;
+    var sched = items.filter(function (l) { return planRank(l) === 0; });
+    var next7 = sched.filter(function (l) {
+      var t = l.visitAt ? new Date(l.visitAt).getTime() : NaN;
+      return !isNaN(t) && t >= now && t <= soon;
+    }).length;
+    var viewed = items.filter(function (l) { return l.visitStatus === 'viewed'; }).length;
+    var dropped = items.filter(function (l) { return l.visitStatus === 'dropped'; }).length;
+    $('#planSum').innerHTML =
+      '<div><span>已约看</span><b>' + sched.length + '</b></div>' +
+      '<div><span>7 天内</span><b>' + next7 + '</b></div>' +
+      '<div><span>已看</span><b>' + viewed + '</b></div>' +
+      '<div><span>放弃</span><b>' + dropped + '</b></div>';
+
+    if (!items.length) {
+      $('#planList').innerHTML = '<div class="plan-empty">还没有看房安排。<br>' +
+        '在房源「编辑 → 看房进度」里标成「已约看」并填时间，这里会按时间排好。<br>' +
+        '点右下角「添加房源」先录一套。</div>';
+      return;
+    }
+    items.sort(function (a, b) {
+      var ra = planRank(a), rb = planRank(b);
+      if (ra !== rb) return ra - rb;
+      var ta = a.visitAt ? new Date(a.visitAt).getTime() : Infinity;
+      var tb = b.visitAt ? new Date(b.visitAt).getTime() : Infinity;
+      return ta - tb;
+    });
+    $('#planList').innerHTML = items.map(function (l) {
+      var t = l.visitAt ? new Date(l.visitAt).getTime() : NaN;
+      var overdue = planRank(l) === 0 && !isNaN(t) && t < now;
+      var when = l.visitAt ? fmtVisit(l.visitAt).split(' ') : ['待定', '未填时间'];
+      var vs = VISIT_STATUS[l.visitStatus || ''] || VISIT_STATUS[''];
+      var sub = '¥' + money(l.price) + (l.community ? ' · ' + esc(l.community) : '') +
+        (overdue ? ' · 已过时间' : '');
+      return '<div class="plan-row' + (overdue ? ' overdue' : '') + '" data-id="' + esc(l.id) + '">' +
+        '<div class="plan-date"><b>' + esc(when[0]) + '</b><span>' + esc(when[1] || '') + '</span></div>' +
+        '<div class="plan-main"><b>' + esc(l.title || '未命名房源') + '</b>' +
+          '<span>' + sub + ' · <em style="font-style:normal;color:#0f8f84;font-weight:700">' + esc(vs.label) + '</em></span></div>' +
+        '<div class="plan-btns">' +
+          '<button data-plan="focus">定位</button>' +
+          '<button data-plan="edit">编辑</button>' +
+          (l.visitStatus !== 'viewed' ? '<button data-plan="viewed">标记已看</button>' : '') +
+          '<button data-plan="clear">清除</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+  function openPlan() {
+    renderPlan();
+    $('#planDialog').classList.add('open');
+    $('#planDialog').setAttribute('aria-hidden', 'false');
+    syncScrim();
+  }
+  function closePlan() {
+    if ($('#planDialog').contains(document.activeElement)) document.activeElement.blur();
+    $('#planDialog').classList.remove('open');
+    $('#planDialog').setAttribute('aria-hidden', 'true');
+    syncScrim();
+  }
+
+  /* ---------------- 首月预算 ---------------- */
+  function calcBudget(rent, b) {
+    var deposit = rent * b.deposit;
+    var prepay = rent * b.pay;
+    var agency = rent * b.agency / 100;
+    var first = deposit + prepay + agency + b.utilities + b.internet + b.moving;
+    var monthly = rent + b.utilities + b.internet;
+    var annual = rent * 12 + agency + b.moving + (b.utilities + b.internet) * 12;
+    return { deposit: deposit, prepay: prepay, agency: agency, first: first, monthly: monthly, amort: annual / 12, annual: annual };
+  }
+  function readBudgetForm() {
+    return normalizeBudget({
+      deposit: $('#bDeposit').value, pay: $('#bPay').value, agency: $('#bAgency').value,
+      utilities: $('#bUtil').value, internet: $('#bNet').value, moving: $('#bMove').value
+    });
+  }
+  function renderBudget() {
+    var rent = Number($('#bRent').value) || 0;
+    var b = readBudgetForm();
+    var r = calcBudget(rent, b);
+    $$('.budget-presets button').forEach(function (x) {
+      var p = x.getAttribute('data-preset').split(',').map(Number);
+      x.classList.toggle('on', p[0] === b.deposit && p[1] === b.pay && p[2] === b.agency);
+    });
+    $('#budgetResult').innerHTML =
+      '<div class="cash"><span>签约现金</span><b>' + (rent ? '¥' + money(Math.round(r.first)) : '—') + '</b></div>' +
+      '<div><span>每月固定</span><b>' + (rent ? '¥' + money(Math.round(r.monthly)) : '—') + '</b></div>' +
+      '<div><span>年化月均</span><b>' + (rent ? '¥' + money(Math.round(r.amort)) : '—') + '</b></div>';
+    $('#budgetBreak').innerHTML = rent
+      ? '押金 ¥' + money(r.deposit) + ' · 预付租金 ' + b.pay + ' 个月 ¥' + money(r.prepay) +
+        ' · 中介费 ¥' + money(Math.round(r.agency)) + ' · 首月水电宽带 ¥' + money(b.utilities + b.internet) +
+        ' · 搬家添置 ¥' + money(b.moving) +
+        '<br>年化月均已把中介费和搬家摊到 12 个月，押金可退所以不计入。'
+      : '填一个月租，就能看到签约要带多少钱、之后每月固定支出。';
+  }
+  function openBudget(rent) {
+    var b = state.budget;
+    $('#bDeposit').value = b.deposit;
+    $('#bPay').value = b.pay;
+    $('#bAgency').value = b.agency;
+    $('#bUtil').value = b.utilities;
+    $('#bNet').value = b.internet;
+    $('#bMove').value = b.moving;
+    if (rent != null && rent > 0) {
+      $('#bRent').value = rent;
+    } else {
+      var focus = state.focusId && state.listings.filter(function (l) { return l.id === state.focusId; })[0];
+      var prices = visible().map(function (l) { return Number(l.price) || 0; }).filter(Boolean);
+      $('#bRent').value = focus ? focus.price : (prices.length ? Math.round(median(prices)) : 5000);
+    }
+    renderBudget();
+    $('#budgetDialog').classList.add('open');
+    $('#budgetDialog').setAttribute('aria-hidden', 'false');
+    syncScrim();
+  }
+  function closeBudget() {
+    if ($('#budgetDialog').contains(document.activeElement)) document.activeElement.blur();
+    $('#budgetDialog').classList.remove('open');
+    $('#budgetDialog').setAttribute('aria-hidden', 'true');
+    syncScrim();
+  }
+
+  /* ---------------- 尽调报告 ---------------- */
+  function filterSummary() {
+    var f = state.filters, bits = [];
+    if (f.min !== '' || f.max !== '') {
+      bits.push('租金 ' + (f.min !== '' ? '¥' + money(f.min) : '不限') + '–' + (f.max !== '' ? '¥' + money(f.max) : '不限'));
+    }
+    if (f.rooms) bits.push(f.rooms === 3 ? '3 居及以上' : f.rooms + ' 居');
+    if (f.layout === 'shared') bits.push('合租');
+    else if (f.layout === 'whole') bits.push('整租');
+    if (f.nearMetro) bits.push('近地铁');
+    if (f.q) bits.push('搜索「' + f.q + '」');
+    if (f.needs && f.needs.length) bits.push(f.needs.join(' / '));
+    if (f.personal) bits.push('过滤疑似中介');
+    if (f.hideBait) bits.push('隐藏货不对板');
+    return bits.join(' · ') || '全部房源';
+  }
+
+  function reportHtml() {
+    var arr = visible();
+    var prices = arr.map(function (l) { return Number(l.price) || 0; }).filter(Boolean);
+    var units = arr.map(unitPrice).filter(function (x) { return isFinite(x); });
+    var med = prices.length ? Math.round(median(prices)) : 0;
+    var p25 = percentile(prices, .25), p75 = percentile(prices, .75);
+    var umed = units.length ? Math.round(median(units)) : 0;
+    var personal = arr.filter(function (l) { return (l.agentScore || 0) <= 55; }).length;
+    var suspect = arr.filter(function (l) { return !l.bait && (l.agentScore || 0) > 55; }).length;
+    var bait = arr.filter(function (l) { return l.bait; }).length;
+    var conflicts = (state.groups || []).filter(function (g) { return g.conflict; }).length;
+    var samples = arr.filter(function (l) { return l.sample; }).length;
+    var schedN = arr.filter(function (l) { return planRank(l) === 0; }).length;
+    var firstMed = med ? calcBudget(med, state.budget).first : 0;
+    var date = new Date().toLocaleString('zh-CN', { hour12: false });
+
+    var buckets = priceBuckets(prices, 7);
+    var maxN = Math.max.apply(null, buckets.map(function (b) { return b.n; }).concat([1]));
+    var hist = buckets.length
+      ? buckets.map(function (b) {
+          return '<div class="hb"><b>' + b.n + '</b><i style="height:' + Math.max(4, Math.round(b.n / maxN * 100)) + '%"></i>' +
+            '<span>¥' + money(b.min) + '–' + money(b.max) + '</span></div>';
+        }).join('')
+      : '<p class="muted">当前筛选没有价格数据。</p>';
+
+    var byCom = {};
+    arr.forEach(function (l) {
+      var c = String(l.community || '').trim();
+      if (c) (byCom[c] = byCom[c] || []).push(l);
+    });
+    var comHtml = Object.keys(byCom).map(function (c) {
+      var items = byCom[c];
+      var ps = items.map(function (l) { return Number(l.price) || 0; }).filter(Boolean);
+      var h = state.hoods[c] || {};
+      var tags = ((h.good || []).map(function (t) { return '<em class="tg good">' + esc(t) + '</em>'; }).join('')) +
+        ((h.risk || []).map(function (t) { return '<em class="tg risk">' + esc(t) + '</em>'; }).join(''));
+      return '<div class="com"><div class="com-h"><b>' + esc(c) + '</b><span>' + items.length + ' 条' +
+        (ps.length ? ' · 中位 ¥' + money(Math.round(median(ps))) + '/月' : '') + '</span></div>' +
+        (tags ? '<div class="tags">' + tags + '</div>' : '') +
+        (h.note ? '<p class="note">' + esc(h.note) + '</p>' : '') + '</div>';
+    }).join('') || '<p class="muted">当前筛选没有带小区的房源。</p>';
+
+    var rows = arr.map(function (l, i) {
+      var t = trustOf(l);
+      var metro = l.metroDist ? esc((l.metroName || '地铁') + ' ' + l.metroDist + 'm') +
+        (metroMismatch(l) ? ' <span class="tr bad">不符</span>' : '') :
+        (l.metroClaimed ? '声称 ' + l.metroClaimed + 'm' : '—');
+      var acct = (l.account && (l.account.type !== 'unknown' || l.account.posts7 != null))
+        ? esc((ACCT_TYPES[l.account.type] || '') + (l.account.posts7 != null ? ' · 7 日 ' + l.account.posts7 + ' 帖' : ''))
+        : '—';
+      var link = /^https?:\/\//i.test(l.url || '')
+        ? '<a href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">原帖</a>' : '—';
+      var vs = l.visitStatus ? (VISIT_STATUS[l.visitStatus] || {}).label : '';
+      var visit = vs ? esc(vs) + (l.visitAt ? '<br><span style="font-size:10px;color:#a89b85">' + esc(fmtVisit(l.visitAt)) + '</span>' : '') : '—';
+      var drop = priceDrop(l);
+      return '<tr><td class="num">' + (i + 1) + '</td><td class="tt">' + esc(l.title || '未命名') +
+        (l.sample ? ' <em class="sm">示例</em>' : '') + '</td><td class="num">¥' + money(l.price) +
+        (drop > 0 ? '<br><em class="sm">↓¥' + money(drop) + '</em>' : '') + '</td>' +
+        '<td class="num">' + (l.area || '—') + '</td><td class="num">' + (l.area && l.price ? '¥' + Math.round(unitPrice(l)) : '—') + '</td>' +
+        '<td>' + esc(l.community || '—') + '</td><td>' + metro + '</td>' +
+        '<td><span class="tr ' + t.key + '">' + t.label + '</span></td>' +
+        '<td>' + acct + '</td><td>' + visit + '</td><td class="num">' + (checkCount(l) ? checkCount(l) + '/8' : '—') + '</td><td>' + link + '</td></tr>';
+    }).join('');
+
+    var css = [
+      '*{box-sizing:border-box}',
+      'body{margin:0;padding:26px 16px 64px;background:#f8f8f0;color:#794f27;font-family:"Nunito","Noto Sans SC",-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6}',
+      '.wrap{max-width:1080px;margin:0 auto}',
+      '.hero{background:#fffdf5;border:2px solid #e8e2d6;border-radius:24px;padding:20px 22px;box-shadow:0 5px 0 #f0e5ce}',
+      '.hero h1{margin:0 0 4px;font-size:24px;color:#5f4326;letter-spacing:.01em}',
+      '.hero .sub{color:#9f927d;font-size:12.5px;font-weight:600}',
+      '.hero .filters{margin-top:9px;display:inline-block;background:#e6f9f6;border:1.5px solid #bfece4;color:#0f8e84;border-radius:999px;padding:4px 12px;font-size:11.5px;font-weight:800}',
+      '.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:14px 0}',
+      '.card{background:#f7f3df;border:2px solid #e8e2d6;border-radius:16px;padding:10px 12px;box-shadow:0 3px 0 #ece1cb}',
+      '.card span{display:block;font-size:10.5px;color:#a89b85;font-weight:700}',
+      '.card b{display:block;font-size:19px;color:#6b4a26;font-weight:800;font-variant-numeric:tabular-nums}',
+      'h2{font-size:16px;color:#6b4a26;margin:22px 0 9px}',
+      '.panel{background:#fffdf5;border:2px solid #e8e2d6;border-radius:20px;padding:14px 16px;box-shadow:0 4px 0 #f0e5ce}',
+      '.hbars{display:flex;align-items:flex-end;gap:5px;height:130px;padding:8px 4px 0}',
+      '.hb{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px}',
+      '.hb b{font-size:10px;color:#a89b85}',
+      '.hb i{display:block;width:100%;max-width:54px;min-height:4px;border-radius:7px 7px 2px 2px;background:linear-gradient(180deg,#3dd4c6,#19c8b9)}',
+      '.hb span{font-size:9.5px;color:#b3a58d;white-space:nowrap}',
+      '.com{border-bottom:2px dashed #f0ead9;padding:9px 0}',
+      '.com:last-child{border-bottom:0}',
+      '.com-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:12.5px}',
+      '.com-h b{color:#6b4a26;font-size:13.5px}',
+      '.com-h span{color:#a89b85;font-size:11px;font-weight:700}',
+      '.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}',
+      '.tg{font-style:normal;border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:800;border:1.5px solid}',
+      '.tg.good{color:#3f7d16;background:#eef8d9;border-color:#c9e6a4}',
+      '.tg.risk{color:#b3423c;background:#fde8e4;border-color:#f4c0b9}',
+      '.note{margin:5px 0 0;font-size:11.5px;color:#8b7f6b;background:#fdf9ec;border-radius:10px;padding:6px 9px}',
+      '.muted{color:#a89b85;font-size:12px;margin:4px 0}',
+      '.tblwrap{overflow:auto;border:2px solid #e8e2d6;border-radius:18px;background:#fffdf5}',
+      'table{border-collapse:collapse;width:100%;min-width:920px;font-size:11.5px}',
+      'th{position:sticky;top:0;background:#f7f1e1;color:#a89b85;text-align:left;font-size:10px;padding:8px 9px;border-bottom:2px solid #ece1cb;white-space:nowrap}',
+      'td{padding:8px 9px;border-bottom:1.5px solid #f0ead9;vertical-align:top;color:#8b7f6b}',
+      'tr:last-child td{border-bottom:0}',
+      'td.tt{color:#6b4a26;font-weight:700;min-width:190px;max-width:280px}',
+      'td.num{font-variant-numeric:tabular-nums;white-space:nowrap}',
+      '.tr{display:inline-block;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:800;border:1.5px solid}',
+      '.tr.good{color:#3f7d16;background:#eef8d9;border-color:#c9e6a4}',
+      '.tr.warn{color:#8a6a00;background:#fdf7d3;border-color:#f0e39a}',
+      '.tr.bad{color:#b3423c;background:#fde8e4;border-color:#f4c0b9}',
+      '.sm{font-style:normal;font-size:9.5px;color:#a06c00;background:#fff1c2;border-radius:999px;padding:1px 5px}',
+      'a{color:#0f9e92;font-weight:800}',
+      '.foot{margin-top:18px;font-size:10.5px;color:#b3a58d;line-height:1.8}',
+      '.warnbox{background:#fff7df;border:2px solid #efd99a;border-radius:16px;padding:10px 12px;font-size:11.5px;color:#79552b;margin-top:12px}',
+      '@media(max-width:720px){.cards{grid-template-columns:1fr 1fr}.hbars{height:110px}.hb span{display:none}}',
+      '@media print{body{padding:0;background:#fff}.panel,.hero,.card,.tblwrap{box-shadow:none}th{position:static}}'
+    ].join('');
+
+    return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>找房雷达 · 尽调报告 · ' + esc(state.cityName || '') + '</title>' +
+      '<style>' + css + '</style></head><body><div class="wrap">' +
+      '<header class="hero"><h1>找房雷达 · 尽调报告</h1>' +
+      '<div class="sub">' + esc(state.cityName || '') + (state.keyword ? ' · ' + esc(state.keyword) : '') +
+      ' · 生成于 ' + esc(date) + '</div>' +
+      '<div class="filters">' + esc(filterSummary()) + '</div></header>' +
+      '<div class="cards">' +
+        '<div class="card"><span>样本房源</span><b>' + arr.length + '</b></div>' +
+        '<div class="card"><span>中位租金</span><b>' + (med ? '¥' + money(med) : '—') + '</b></div>' +
+        '<div class="card"><span>中间 50%</span><b>' + (prices.length ? '¥' + money(p25) + '–' + money(p75) : '—') + '</b></div>' +
+        '<div class="card"><span>中位单价</span><b>' + (umed ? '¥' + umed : '—') + '</b></div>' +
+        '<div class="card"><span>个人直租</span><b>' + personal + '</b></div>' +
+        '<div class="card"><span>疑似中介</span><b>' + suspect + '</b></div>' +
+        '<div class="card"><span>货不对板</span><b>' + bait + '</b></div>' +
+        '<div class="card"><span>同址冲突组</span><b>' + conflicts + '</b></div>' +
+        '<div class="card"><span>已约看</span><b>' + schedN + '</b></div>' +
+        '<div class="card"><span>首月现金（中位租）</span><b>' + (firstMed ? '¥' + money(Math.round(firstMed)) : '—') + '</b></div>' +
+      '</div>' +
+      '<h2>租金分布</h2><div class="panel"><div class="hbars">' + hist + '</div></div>' +
+      '<h2>小区尽调</h2><div class="panel">' + comHtml + '</div>' +
+      '<h2>房源清单</h2><div class="tblwrap"><table><thead><tr>' +
+      '<th>#</th><th>房源</th><th>租金</th><th>面积</th><th>单价</th><th>小区</th><th>地铁</th>' +
+      '<th>可信度</th><th>账号画像</th><th>看房</th><th>避坑</th><th>原帖</th></tr></thead><tbody>' +
+      (rows || '<tr><td colspan="12">当前筛选没有房源。</td></tr>') +
+      '</tbody></table></div>' +
+      (samples ? '<div class="warnbox">报告含 ' + samples + ' 条<b>虚构示例数据</b>，仅用于预览，请勿当作真实房源。</div>' : '') +
+      '<p class="foot">本报告由「找房雷达」在你本机生成，数据来自手动粘贴与录入，不代表全网挂牌量或市场均价。' +
+      '可信度是基于文本话术、账号画像、来源等信号的启发式评分，不是事实认定；看房前请核对房产证、合同与费用。' +
+      '所有明细只存在本机 localStorage，本文件不含任何自动上传逻辑。</p>' +
+      '</div></body></html>';
+  }
+
+  function downloadHtml(name, html) {
+    var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  }
+
+  function exportReport() {
+    if (!state.listings.length) { toast('还没有房源，报告是空的'); return; }
+    var name = 'findhouse-report-' + new Date().toISOString().slice(0, 10) + '.html';
+    downloadHtml(name, reportHtml());
+    toast('报告已导出：' + name);
+  }
+
+  /* ---------------- 列表交互 ---------------- */
+  $('#list').addEventListener('click', function (e) {
+    var card = e.target.closest('.card');
+    if (!card) return;
+    var id = card.getAttribute('data-id');
+    var act = e.target.closest('[data-act]');
+    if (act) {
+      var a = act.getAttribute('data-act');
+      if (a === 'star') { toggleStar(id); e.stopPropagation(); return; }
+      if (a === 'del') { removeListing(id); e.stopPropagation(); return; }
+      if (a === 'edit') {
+        var target = state.listings.filter(function (x) { return x.id === id; })[0];
+        if (target) openDrawer(target);
+        e.stopPropagation(); return;
+      }
+      if (a === 'focus') { focusListing(id, true); e.stopPropagation(); return; }
+      if (a === 'compare') { openCompare(act.getAttribute('data-key')); e.stopPropagation(); return; }
+      if (a === 'hood') { openHood(act.getAttribute('data-hood')); e.stopPropagation(); return; }
+    }
+    if (e.target.closest('a')) return;
+    focusListing(id, true);
+  });
+
+  function toggleStar(id) {
+    var l = state.listings.filter(function (x) { return x.id === id; })[0];
+    if (!l) return;
+    l.starred = !l.starred;
+    render(); saveSoon();
+  }
+  function removeListing(id) {
+    var l = state.listings.filter(function (x) { return x.id === id; })[0];
+    if (!l) return;
+    if (!confirm('删除「' + (l.title || '这条房源') + '」？')) return;
+    state.listings = state.listings.filter(function (x) { return x.id !== id; });
+    if (state.focusId === id) state.focusId = null;
+    recompute(); render(); saveSoon();
+    toast('已删除');
+  }
+
+  $('#btnCmpClose').addEventListener('click', closeCompare);
+  $('#btnCmpDone').addEventListener('click', closeCompare);
+  $('#cmpBody').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-cmp]');
+    if (!b) return;
+    var id = b.getAttribute('data-id');
+    var l = state.listings.filter(function (x) { return x.id === id; })[0];
+    if (!l) return;
+    var act = b.getAttribute('data-cmp');
+    if (act === 'focus') { closeCompare(); focusListing(id, true); return; }
+    if (act === 'bait' || act === 'unbait') {
+      l.bait = act === 'bait';
+      recompute(); render(); save();
+      var g = (state.groups || []).filter(function (x) { return x.key === state.cmpKey; })[0];
+      if (g) buildCompare(g); else closeCompare();
+      toast(act === 'bait' ? '已标记货不对板，列表默认隐藏' : '已恢复收录');
+    }
+  });
+
+  /* ---------------- 筛选交互 ---------------- */
+  function bindFilters() {
+    $('#fMin').addEventListener('input', function (e) { state.filters.min = e.target.value; render(); });
+    $('#fMax').addEventListener('input', function (e) { state.filters.max = e.target.value; render(); });
+    $('#fQ').addEventListener('input', debounce(function (e) { state.filters.q = e.target.value.trim(); render(); }, 160));
+    $('#fSort').addEventListener('change', function (e) { state.filters.sort = e.target.value; render(); });
+
+    $('#fRooms').addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      $$('#fRooms button').forEach(function (x) { x.classList.toggle('on', x === b); });
+      state.filters.rooms = Number(b.getAttribute('data-v'));
+      render();
+    });
+
+    $('#fPersonal').addEventListener('click', function (e) {
+      var on = e.currentTarget.classList.toggle('on');
+      state.filters.personal = on;
+      render();
+    });
+    $('#fNoDup').addEventListener('click', function (e) {
+      var on = e.currentTarget.classList.toggle('on');
+      state.filters.noDup = on;
+      render();
+    });
+    $('#fBait').addEventListener('click', function (e) {
+      var on = e.currentTarget.classList.toggle('on');
+      state.filters.hideBait = on;
+      render();
+    });
+    $('#fRings').addEventListener('click', function (e) {
+      var on = e.currentTarget.classList.toggle('on');
+      state.showRings = on;
+      drawFocusOverlay();
+    });
+    $('#btnAlertCmp').addEventListener('click', function () {
+      var key = this.getAttribute('data-key');
+      if (key) openCompare(key);
+    });
+
+    $('#layers').addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      $$('#layers button').forEach(function (x) { x.classList.toggle('on', x === b); });
+      state.layer = b.getAttribute('data-v');
+      renderPins(); renderHeat();
+    });
+
+    $('#btnToggleFilters').addEventListener('click', function () {
+      var side = document.querySelector('.side');
+      var on = side.classList.toggle('show-filters');
+      this.textContent = on ? '收起' : '筛选';
+    });
+    $('#btnCollapseFilters').addEventListener('click', function () {
+      document.querySelector('.side').classList.remove('show-filters');
+      $('#btnToggleFilters').textContent = '筛选';
+      var head = document.querySelector('.list-head');
+      if (head && head.scrollIntoView) head.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }
+
+  /* ---------------- 平台快捷入口 ---------------- */
+  function buildQuickLinks() {
+    var kw = (state.keyword || state.cityName || '') + ' 租房';
+    var links = [
+      { name: '豆瓣租房', url: 'https://www.douban.com/group/search?cat=1013&q=' + encodeURIComponent(kw + ' 个人'), src: 'douban' },
+      { name: '小红书', url: 'https://www.xiaohongshu.com/search_result?keyword=' + encodeURIComponent(kw + ' 房东直租'), src: 'xiaohongshu' },
+      { name: '闲鱼', url: 'https://www.goofish.com/search?q=' + encodeURIComponent(kw), src: 'xianyu' },
+      { name: '贝壳租房', url: 'https://' + state.city + '.ke.com/zufang/', src: 'beike' }
+    ];
+    $('#qLinks').innerHTML = links.map(function (l) {
+      return '<a class="q-link" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer" title="新窗口打开：' + esc(l.name) + '">' +
+        '<span class="d" style="background:' + SOURCE_DOT[l.src] + '"></span>' + esc(l.name) + '</a>';
+    }).join('');
+  }
+
+  /* ---------------- 文本解析 ---------------- */
+  function parseText(raw) {
+    var text = String(raw || '');
+    var out = {};
+
+    var urlM = text.match(/https?:\/\/[^\s"'<>）)]+/);
+    if (urlM) {
+      out.url = urlM[0];
+      out.source = sourceOf(urlM[0]);
+      text = text.replace(urlM[0], ' ');
+    }
+
+    var m = text.match(/(?:租金|价格|月租|租价|房租)?\s*[¥￥]?\s*(\d{3,6})\s*(?:元|块)?\s*(?:\/|每)?\s*(?:个月|月)/);
+    if (!m) m = text.match(/(?:租金|价格|月租|房租)\s*[:：]?\s*(\d{3,6})/);
+    if (!m) m = text.match(/[¥￥]\s*(\d{3,6})/);
+    if (!m) m = text.match(/(\d{3,6})\s*(?:元|块)(?:\s*\/?\s*月)?/);
+    if (m) out.price = Number(m[1]);
+
+    m = text.match(/(\d{2,4}(?:\.\d)?)\s*(?:㎡|平米|平方米|平方|平(?![台面]))/);
+    if (m) out.area = Number(m[1]);
+
+    m = text.match(/([1-9])\s*(?:室|房|居)/);
+    if (m) out.rooms = Number(m[1]);
+
+    m = text.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*层/);
+    if (m) out.floor = m[1] + '/' + m[2] + '层';
+
+    m = text.match(/1[3-9]\d{9}/);
+    if (m) out.phone = m[0];
+
+    // 帖子声称的「距地铁」：先找米数，再找分钟数（按 75m/分钟 换算）
+    var claimed = null, claimedText = '';
+    m = text.match(/地铁[^\d\n]{0,10}(\d{2,4})\s*(?:米|m|M)/);
+    if (m) { claimed = Number(m[1]); claimedText = m[0].trim(); }
+    if (!claimed) {
+      m = text.match(/(?:步行|走路|距地铁|离地铁|地铁)[^\d\n]{0,8}(\d{1,2})\s*分钟/);
+      if (m) { claimed = Math.round(Number(m[1]) * 75); claimedText = m[0].trim(); }
+    }
+    if (!claimed) {
+      m = text.match(/(\d{2,4})\s*(?:米|m|M)\s*(?:到|至|距)?地铁/);
+      if (m) { claimed = Number(m[1]); claimedText = m[0].trim(); }
+    }
+    if (claimed) { out.metroClaimed = claimed; out.metroClaimText = claimedText; }
+
+    m = text.match(/([^\s，,。；;！!]{2,14}(?:小区|公寓|花园|家园|新村|苑|府|里|城|湾|广场))/);
+    if (m) out.community = m[1];
+
+    var firstLine = text.split('\n').filter(function (x) { return x.trim(); })[0] || '';
+    out.title = firstLine
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/1[3-9]\d{9}/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+      .slice(0, 60);
+    out.desc = text.trim().slice(0, 800);
+
+    return out;
+  }
+
+  /* ---------------- 抽屉 ---------------- */
+  var drawer = $('#drawer');
+  var scrim = $('#scrim');
+
+  function fillSourceOptions() {
+    $('#dSource').innerHTML = Object.keys(SOURCES).map(function (k) {
+      return '<option value="' + k + '">' + SOURCES[k] + '</option>';
+    }).join('');
+  }
+
+  function openDrawer(existing) {
+    state.editingId = existing ? existing.id : null;
+    state.draft = existing ? Object.assign({}, existing) : {
+      id: null, title: '', price: '', area: '', rooms: '', floor: '', community: '',
+      url: '', phone: '', desc: '', note: '', source: 'other', lat: null, lng: null,
+      account: { name: '', url: '', posts7: null, type: 'unknown' },
+      metroName: '', metroDist: null, metroClaimed: null, metroClaimText: '',
+      amenities: [], checks: {}, bait: false,
+      priceHistory: [], visitStatus: '', visitAt: '', visitNote: ''
+    };
+    if (!state.draft.account) state.draft.account = { name: '', url: '', posts7: null, type: 'unknown' };
+    if (!state.draft.checks) state.draft.checks = {};
+    if (!Array.isArray(state.draft.amenities)) state.draft.amenities = [];
+    $('#drawerTitle').textContent = existing ? '编辑房源' : '添加房源';
+    $('#pasteBox').value = '';
+    $('#dTitle').value = state.draft.title || '';
+    $('#dPrice').value = state.draft.price || '';
+    $('#dArea').value = state.draft.area || '';
+    $('#dRooms').value = state.draft.rooms || '';
+    $('#dFloor').value = state.draft.floor || '';
+    $('#dCommunity').value = state.draft.community || '';
+    $('#dUrl').value = state.draft.url || '';
+    $('#dPhone').value = state.draft.phone || '';
+    $('#dSource').value = state.draft.source || 'other';
+    $('#dNote').value = state.draft.note || state.draft.desc || '';
+
+    var ac = state.draft.account;
+    $('#dAcctName').value = ac.name || '';
+    $('#dAcctUrl').value = ac.url || '';
+    $('#dAcctPosts').value = (ac.posts7 == null || ac.posts7 === '') ? '' : ac.posts7;
+    $('#dAcctType').value = ac.type || 'unknown';
+    $('#dMetroName').value = state.draft.metroName || '';
+    $('#dMetroDist').value = state.draft.metroDist == null ? '' : state.draft.metroDist;
+    $('#dMetroClaimed').value = state.draft.metroClaimed == null ? '' : state.draft.metroClaimed;
+    $('#dMetroClaimText').value = state.draft.metroClaimText || '';
+    $('#dVisitAt').value = state.draft.visitAt ? String(state.draft.visitAt).slice(0, 16) : '';
+    $('#dVisitNote').value = state.draft.visitNote || '';
+    renderVisitStatus(state.draft);
+    renderPriceHist(state.draft);
+    renderChecks(state.draft);
+    renderAmenityResult(state.draft);
+
+    updatePosText();
+    updateScorePreview();
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    setTimeout(function () {
+      if (drawer.classList.contains('open')) $('#pasteBox').focus();
+    }, 240);
+  }
+
+  function closeDrawer() {
+    if (drawer.contains(document.activeElement)) document.activeElement.blur();
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    if (state.picking) stopPicking();
+  }
+
+  function readForm() {
+    var d = state.draft || {};
+    d.title = $('#dTitle').value.trim();
+    d.price = Number($('#dPrice').value) || 0;
+    d.area = Number($('#dArea').value) || 0;
+    d.rooms = Number($('#dRooms').value) || 0;
+    d.floor = $('#dFloor').value.trim();
+    d.community = $('#dCommunity').value.trim();
+    d.url = $('#dUrl').value.trim();
+    d.phone = $('#dPhone').value.trim();
+    d.source = $('#dSource').value;
+    d.note = $('#dNote').value.trim();
+    d.desc = (d.desc && d.desc.length > 40) ? d.desc : d.note;
+
+    d.account = {
+      name: $('#dAcctName').value.trim(),
+      url: $('#dAcctUrl').value.trim(),
+      posts7: $('#dAcctPosts').value === '' ? null : Number($('#dAcctPosts').value),
+      type: $('#dAcctType').value
+    };
+    d.metroName = $('#dMetroName').value.trim();
+    d.metroDist = $('#dMetroDist').value === '' ? null : Number($('#dMetroDist').value);
+    d.metroClaimed = $('#dMetroClaimed').value === '' ? null : Number($('#dMetroClaimed').value);
+    d.metroClaimText = $('#dMetroClaimText').value.trim();
+    d.visitAt = $('#dVisitAt').value;
+    d.visitNote = $('#dVisitNote').value.trim();
+    d.checks = {};
+    $$('#checks input').forEach(function (el) { if (el.checked) d.checks[el.value] = true; });
+    if (!d.title) {
+      d.title = [d.community || '未命名房源', d.rooms ? d.rooms + '室' : '', d.area ? d.area + '㎡' : '']
+        .filter(Boolean).join(' · ');
+    }
+    if (!d.source && d.url) d.source = sourceOf(d.url);
+    return d;
+  }
+
+  function updatePosText() {
+    var d = state.draft;
+    var el = $('#posText');
+    if (!d || d.lat == null) { el.textContent = '未指定'; el.style.color = '#b45309'; return; }
+    el.textContent = Number(d.lat).toFixed(5) + ', ' + Number(d.lng).toFixed(5);
+    el.style.color = '';
+  }
+
+  function renderVisitStatus(d) {
+    var cur = (d && d.visitStatus) || '';
+    $('#visitStatus').innerHTML = VISIT_ORDER.map(function (k) {
+      return '<button type="button" data-v="' + k + '" class="' + (k === cur ? 'on' : '') + '">' +
+        esc(VISIT_STATUS[k].label) + '</button>';
+    }).join('');
+  }
+  function renderPriceHist(d) {
+    var el = $('#priceHist');
+    var h = (d && Array.isArray(d.priceHistory)) ? d.priceHistory : [];
+    if (!state.editingId || !h.length) { el.hidden = true; el.innerHTML = ''; return; }
+    var parts = h.slice(-4).map(function (x) {
+      var dt = new Date(x.t);
+      var md = isNaN(dt.getTime()) ? '—' : (dt.getMonth() + 1) + '-' + dt.getDate();
+      return md + ' ¥' + money(x.p);
+    });
+    var cur = Number($('#dPrice').value) || 0;
+    var latest = Number(h[h.length - 1].p) || 0;
+    var extra = cur && latest && cur !== latest ? ' <b>改价后 ¥' + money(cur) + '</b>' : '';
+    el.hidden = false;
+    el.innerHTML = '价格记录：' + parts.join(' → ') + extra;
+  }
+
+  function renderChecks(d) {
+    var c = (d && d.checks) || {};
+    $('#checks').innerHTML = CHECK_ITEMS.map(function (x) {
+      return '<label class="' + (c[x.id] ? 'done' : '') + '"><input type="checkbox" value="' + x.id + '"' +
+        (c[x.id] ? ' checked' : '') + '><span>' + x.label + '</span></label>';
+    }).join('');
+    updateCheckCount(d);
+  }
+  function updateCheckCount(d) {
+    var n = 0;
+    $$('#checks input').forEach(function (inp) {
+      var on = inp.checked;
+      inp.parentNode.classList.toggle('done', on);
+      if (on) n++;
+    });
+    var el = $('#checkCount');
+    el.textContent = n + '/' + CHECK_ITEMS.length;
+    el.className = n >= 6 ? 'ok' : n <= 2 ? 'low' : '';
+  }
+  function updateMetroFlag(d) {
+    var el = $('#metroFlag');
+    if (!el || !d) return;
+    var a = Number(d.metroDist), c = Number(d.metroClaimed);
+    if (!a || !c) { el.textContent = ''; el.className = 'sub-tip metro-flag'; return; }
+    if (metroMismatch(d)) {
+      el.textContent = '声称 ' + c + 'm，实测 ' + a + 'm（差 ' + (a / c).toFixed(1) + ' 倍）';
+      el.className = 'sub-tip metro-flag bad';
+    } else {
+      el.textContent = '声称与实测接近（' + a + 'm）';
+      el.className = 'sub-tip metro-flag good';
+    }
+  }
+  function renderAmenityResult(d) {
+    var box = $('#amenityResult');
+    if (!box) return;
+    var list = (d && d.amenities) || [];
+    if (!list.length) {
+      box.innerHTML = '<span class="ar-hint">还没查。OSM 覆盖不全；在设置里填高德 Key 会更准，查不到就自己走一遍填「实测距离」。</span>';
+      return;
+    }
+    var order = { metro: 0, supermarket: 1, market: 2, convenience: 3 };
+    box.innerHTML = list.slice().sort(function (a, b) {
+      return (order[a.kind] || 9) - (order[b.kind] || 9);
+    }).map(function (a) {
+      var far = a.dist > (a.kind === 'metro' ? 1000 : 1200);
+      var nm = (a.name && a.name !== AMENITY_LABEL[a.kind]) ? ' · ' + esc(a.name) : '';
+      return '<div class="arow"><span>' + AMENITY_LABEL[a.kind] + nm + '</span><span><b class="' + (far ? 'far' : '') +
+        '">' + a.dist + 'm</b> · 步行 ' + walkMin(a.dist) + ' 分</span></div>';
+    }).join('');
+  }
+
+  // 高德 POI：有 Key 时优先用（GCJ-02 原生，覆盖比 OSM 稳）
+  var AMAP_AMENITY_TYPES = [
+    { kind: 'metro', code: '1505' },
+    { kind: 'supermarket', code: '0604' },
+    { kind: 'market', code: '0607' },
+    { kind: 'convenience', code: '0602' }
+  ];
+  function kindByAmapType(tc) {
+    tc = String(tc || '');
+    for (var i = 0; i < AMAP_AMENITY_TYPES.length; i++) {
+      if (tc.indexOf(AMAP_AMENITY_TYPES[i].code) === 0) return AMAP_AMENITY_TYPES[i].kind;
+    }
+    return null;
+  }
+  function amapAmenities(l) {
+    var types = AMAP_AMENITY_TYPES.map(function (t) { return t.code + '00'; }).join('|');
+    var u = 'https://restapi.amap.com/v3/place/around?key=' + encodeURIComponent(state.amapKey) +
+      '&location=' + Number(l.lng).toFixed(6) + ',' + Number(l.lat).toFixed(6) +
+      '&radius=1500&types=' + types + '&offset=25&page=1&sortrule=distance&extensions=base';
+    return fetchJson(u, 12000).then(function (d) {
+      if (!d || d.status !== '1') {
+        throw new Error((d && d.info) || '高德 POI 查询失败');
+      }
+      var best = {};
+      (d.pois || []).forEach(function (p) {
+        var kind = kindByAmapType(p.typecode);
+        if (!kind || !p.location) return;
+        var loc = String(p.location).split(',');
+        var pt = { lng: Number(loc[0]), lat: Number(loc[1]) };
+        if (isNaN(pt.lat) || isNaN(pt.lng)) return;
+        var dist = Math.round(haversine({ lat: l.lat, lng: l.lng }, pt) * 1000);
+        var name = p.name || AMENITY_LABEL[kind];
+        if (!best[kind] || dist < best[kind].dist) {
+          best[kind] = { kind: kind, name: name, dist: dist, lat: pt.lat, lng: pt.lng, src: 'amap' };
+        }
+      });
+      return ['metro', 'supermarket', 'market', 'convenience']
+        .map(function (k) { return best[k]; }).filter(Boolean);
+    });
+  }
+
+  function fetchAmenities(l) {
+    if (state.amapKey) {
+      return amapAmenities(l).then(function (arr) {
+        if (arr && arr.length) return arr;
+        return overpassAmenities(l);
+      }).catch(function () { return overpassAmenities(l); });
+    }
+    return overpassAmenities(l);
+  }
+
+  // Overpass：按类别找 1.5km 内最近的设施，返回 GCJ-02 坐标
+  function overpassAmenities(l) {
+    var w = gcj2wgs(l.lng, l.lat);
+    var q = '[out:json][timeout:25];(' +
+      'node(around:1500,' + w.lat + ',' + w.lng + ')["railway"="subway_entrance"];' +
+      'node(around:1500,' + w.lat + ',' + w.lng + ')["station"="subway"];' +
+      'node(around:1200,' + w.lat + ',' + w.lng + ')["shop"="supermarket"];' +
+      'node(around:1000,' + w.lat + ',' + w.lng + ')["shop"="convenience"];' +
+      'node(around:1500,' + w.lat + ',' + w.lng + ')["amenity"="marketplace"];' +
+      ');out body 120;';
+    var paths = [
+      'https://overpass-api.de/api/interpreter?data=',
+      'https://overpass.kumi.systems/api/interpreter?data=',
+      'https://overpass.private.coffee/api/interpreter?data='
+    ];
+    function tryAt(i) {
+      if (i >= paths.length) return Promise.reject(new Error('OSM 服务暂时不可用'));
+      return fetchJson(paths[i] + encodeURIComponent(q), 16000).then(function (d) {
+        if (!d || !Array.isArray(d.elements)) throw new Error('OSM 返回格式异常');
+        return d;
+      }).catch(function () { return tryAt(i + 1); });
+    }
+    return tryAt(0)
+      .then(function (d) {
+        var els = (d && d.elements) || [];
+        var best = {};
+        els.forEach(function (e) {
+          if (e.lat == null || e.lon == null) return;
+          var t = e.tags || {};
+          var kind = (t.railway === 'subway_entrance' || t.station === 'subway' || t.subway === 'yes') ? 'metro'
+            : t.shop === 'supermarket' ? 'supermarket'
+            : t.shop === 'convenience' ? 'convenience'
+            : t.amenity === 'marketplace' ? 'market'
+            : null;
+          if (!kind) return;
+          var p = wgs2gcj(e.lon, e.lat);
+          var dist = Math.round(haversine({ lat: l.lat, lng: l.lng }, p) * 1000);
+          var name = t['name:zh'] || t.name || t['name:en'] || AMENITY_LABEL[kind];
+          if (!best[kind] || dist < best[kind].dist) {
+            best[kind] = { kind: kind, name: name, dist: dist, lat: p.lat, lng: p.lng };
+          }
+        });
+        return ['metro', 'supermarket', 'market', 'convenience']
+          .map(function (k) { return best[k]; }).filter(Boolean);
+      });
+  }
+
+  function copyQuestions() {
+    var text = '租房前先问清这 10 件事：\n' + ASK_QUESTIONS.map(function (q, i) {
+      return (i + 1) + '. ' + q;
+    }).join('\n');
+    function done() { toast('已复制，可直接发给房东'); }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); }
+      catch (e) { toast('复制失败，请手动选择文本'); }
+      ta.remove();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else fallback();
+  }
+
+  function updateScorePreview() {
+    var d = readForm();
+    updateMetroFlag(d);
+    updateCheckCount(d);
+    if (!d.title && !d.note && !d.community) {
+      $('#scorePreview').textContent = '填完信息后自动估算中介味';
+      return;
+    }
+    var copy = Object.assign({}, d, { id: '__preview' });
+    var arr = state.listings.concat([copy]);
+    scoreListing(copy, arr);
+    var t = trustOf(copy);
+    $('#scorePreview').innerHTML = '预估中介味 <b>' + copy.agentScore + '</b> · <span style="color:' + t.ink + '">' + t.label + '</span>' +
+      (copy.why.length ? '<br><span style="color:#a49d8e;font-size:10px">' + esc(copy.why.slice(0, 2).join('；')) + '</span>' : '');
+  }
+
+  $('#drawer').addEventListener('input', function (e) {
+    if (e.target.id === 'pasteBox') return;
+    updateScorePreview();
+  });
+
+  $('#btnParse').addEventListener('click', function () {
+    var raw = $('#pasteBox').value.trim();
+    if (!raw) { toast('先把帖子内容粘进来'); return; }
+    var p = parseText(raw);
+    if (p.price) $('#dPrice').value = p.price;
+    if (p.area) $('#dArea').value = p.area;
+    if (p.rooms) $('#dRooms').value = p.rooms;
+    if (p.floor) $('#dFloor').value = p.floor;
+    if (p.community) $('#dCommunity').value = p.community;
+    if (p.url) $('#dUrl').value = p.url;
+    if (p.phone) $('#dPhone').value = p.phone;
+    if (p.source) $('#dSource').value = p.source;
+    if (p.metroClaimed) $('#dMetroClaimed').value = p.metroClaimed;
+    if (p.metroClaimText) $('#dMetroClaimText').value = p.metroClaimText;
+    if (p.title && !$('#dTitle').value) $('#dTitle').value = p.title;
+    if (p.desc) $('#dNote').value = p.desc;
+    updateScorePreview();
+    toast('已识别：' + [p.price ? '¥' + p.price : '', p.area ? p.area + '㎡' : '', p.rooms ? p.rooms + '室' : ''].filter(Boolean).join(' · ') || '只填了文本');
+  });
+
+  $('#btnPosCenter').addEventListener('click', function () {
+    var c = map.getCenter();
+    state.draft.lat = c.lat; state.draft.lng = c.lng;
+    updatePosText(); updateScorePreview();
+    toast('已放在地图中心：' + c.lat.toFixed(4) + ', ' + c.lng.toFixed(4));
+  });
+
+  $('#btnPosPick').addEventListener('click', function () {
+    if (!state.draft) return;
+    state.draft = readForm();
+    closeDrawerSilently();
+    startPicking();
+  });
+
+  $('#btnPosGeo').addEventListener('click', function () {
+    var addr = $('#dCommunity').value.trim() || $('#dTitle').value.trim();
+    if (!addr) { toast('先填小区名或地址'); return; }
+    var btn = $('#btnPosGeo');
+    btn.disabled = true; btn.textContent = '定位中…';
+    geocode(addr).then(function (pt) {
+      state.draft.lat = pt.lat; state.draft.lng = pt.lng;
+      updatePosText(); updateScorePreview();
+      map.setView([pt.lat, pt.lng], 16);
+      toast('已定位到：' + pt.label);
+    }).catch(function (err) {
+      toast(err.message || '没找到这个地址，试试在地图上点选');
+    }).then(function () {
+      btn.disabled = false; btn.textContent = '按地址定位';
+    });
+  });
+
+  $('#btnAmenity').addEventListener('click', function () {
+    if (!state.draft) return;
+    if (state.draft.lat == null) { toast('先给房源定位（点选 / 地图中心 / 按地址），再查周边'); return; }
+    var btn = this, old = btn.textContent;
+    btn.disabled = true; btn.textContent = '查询中…';
+    fetchAmenities(state.draft).then(function (list) {
+      state.draft.amenities = list;
+      var m = list.filter(function (x) { return x.kind === 'metro'; })[0];
+      if (m) {
+        if (!$('#dMetroName').value) $('#dMetroName').value = m.name;
+        if ($('#dMetroDist').value === '') $('#dMetroDist').value = m.dist;
+      }
+      renderAmenityResult(state.draft);
+      updateScorePreview();
+      toast(list.length ? '查到 ' + list.length + ' 类设施（直线距离）' : 'OSM 没返回结果，手动填实测距离更稳');
+    }).catch(function (err) {
+      toast('周边查询失败：' + (err.message || '网络问题') + '，可手动填距离');
+    }).then(function () {
+      btn.disabled = false; btn.textContent = old;
+    });
+  });
+  $('#btnClearAmenity').addEventListener('click', function () {
+    if (!state.draft) return;
+    state.draft.amenities = [];
+    renderAmenityResult(state.draft);
+    toast('已清除设施结果');
+  });
+  $('#btnCopyQs').addEventListener('click', copyQuestions);
+
+  function closeDrawerSilently() {
+    if (drawer.contains(document.activeElement)) document.activeElement.blur();
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+  }
+
+  $('#btnSave').addEventListener('click', function () {
+    var d = readForm();
+    if (!d.price || d.price <= 0) { toast('租金还没填'); $('#dPrice').focus(); return; }
+    if (d.lat == null) {
+      var c = map.getCenter();
+      d.lat = c.lat; d.lng = c.lng;
+      toast('没指定位置，已放在地图中心，之后可以编辑调整');
+    }
+    if (!d.url) d.source = d.source || 'other';
+
+    if (state.editingId) {
+      var idx = state.listings.findIndex(function (x) { return x.id === state.editingId; });
+      if (idx >= 0) {
+        d.id = state.editingId;
+        d.createdAt = state.listings[idx].createdAt;
+        d.sample = state.listings[idx].sample;
+        d.starred = state.listings[idx].starred;
+        state.listings[idx] = d;
+      }
+    } else {
+      d.id = uid();
+      d.createdAt = Date.now();
+      state.listings.push(d);
+    }
+    recompute();
+    render(); save();
+    closeDrawer();
+    toast(state.editingId ? '已更新' : '已添加 · 中介味 ' + d.agentScore + '（' + trustOf(d).label + '）');
+    focusListing(d.id, false);
+  });
+
+  $('#btnAdd').addEventListener('click', function () { openDrawer(null); });
+  $('#btnCloseDrawer').addEventListener('click', closeDrawer);
+  $('#btnCancel').addEventListener('click', closeDrawer);
+
+  /* ---------------- 地图点选 ---------------- */
+  function startPicking() {
+    state.picking = true;
+    $('#pickBanner').classList.add('show');
+    document.body.style.cursor = 'crosshair';
+    if (map) map.getContainer().style.cursor = 'crosshair';
+  }
+  function stopPicking() {
+    state.picking = false;
+    state.pickingFromDrawer = false;
+    $('#pickBanner').classList.remove('show');
+    if (map) map.getContainer().style.cursor = '';
+  }
+  function onMapClick(e) {
+    if (!state.picking) return;
+    state.picking = false;
+    $('#pickBanner').classList.remove('show');
+    if (map) map.getContainer().style.cursor = '';
+    state.draft = state.draft || {};
+    state.draft.lat = e.latlng.lat;
+    state.draft.lng = e.latlng.lng;
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    updatePosText(); updateScorePreview();
+    toast('位置已选定，补完信息后保存');
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (state.picking) {
+        stopPicking();
+        if (state.draft) { drawer.classList.add('open'); drawer.setAttribute('aria-hidden', 'false'); }
+      } else if ($('#budgetDialog').classList.contains('open')) {
+        closeBudget();
+      } else if ($('#planDialog').classList.contains('open')) {
+        closePlan();
+      } else if (drawer.classList.contains('open')) {
+        closeDrawer();
+      } else if ($('#askDialog').classList.contains('open')) {
+        closeAsk();
+      } else if ($('#hoodDialog').classList.contains('open')) {
+        closeHood();
+      } else if ($('#marketDialog').classList.contains('open')) {
+        closeMarket();
+      } else if ($('#cmpDialog').classList.contains('open')) {
+        closeCompare();
+      } else if ($('#dialog').classList.contains('open')) {
+        closeDialog();
+      }
+    }
+  });
+
+  /* ---------------- 地理编码 ---------------- */
+  function fetchJson(url, ms) {
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, ms || 8000);
+    return fetch(url, { signal: ctrl.signal, headers: { 'Accept': 'application/json' } })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .finally(function () { clearTimeout(timer); });
+  }
+
+  function geocode(addr) {
+    if (state.amapKey) {
+      var u = 'https://restapi.amap.com/v3/geocode/geo?key=' + encodeURIComponent(state.amapKey) +
+        '&address=' + encodeURIComponent(addr) + '&city=' + encodeURIComponent(state.cityName);
+      return fetchJson(u).then(function (d) {
+        if (d && d.status === '1' && d.geocodes && d.geocodes.length) {
+          var loc = d.geocodes[0].location.split(',');
+          return { lat: Number(loc[1]), lng: Number(loc[0]), label: d.geocodes[0].formatted_address || addr };
+        }
+        throw new Error('高德没找到这个地址');
+      }).catch(function () {
+        return nominatim(addr);
+      });
+    }
+    return nominatim(addr);
+  }
+
+  function nominatim(addr) {
+    var u = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=zh&q=' +
+      encodeURIComponent(addr + ' ' + (state.cityName || ''));
+    return fetchJson(u, 9000).then(function (arr) {
+      if (!arr || !arr.length) throw new Error('没找到这个地址，直接在地图上点选更快');
+      var p = wgs2gcj(Number(arr[0].lon), Number(arr[0].lat));
+      return { lat: p.lat, lng: p.lng, label: arr[0].display_name || addr };
+    });
+  }
+
+  function reverseGeo(wgs) {
+    var u = 'https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + wgs.lat +
+      '&longitude=' + wgs.lng + '&localityLanguage=zh';
+    return fetchJson(u, 7000).catch(function () { return null; });
+  }
+
+  /* ---------------- 定位 ---------------- */
+  function locate() {
+    if (!navigator.geolocation) {
+      showBanner('这个浏览器不支持定位。可以直接拖动地图，或在地图上点选。', true);
+      return;
+    }
+    var btn = $('#btnLocate');
+    btn.disabled = true; btn.textContent = '定位中';
+    $('#locName').textContent = '正在获取定位…';
+    $('#locSub').textContent = '请在浏览器弹窗里点「允许」';
+
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var wgs = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      var gcj = wgs2gcj(wgs.lng, wgs.lat);
+      setHome(gcj.lat, gcj.lng, pos.coords.accuracy, true);
+      $('#locName').textContent = '已定位到当前位置';
+      $('#locSub').textContent = '精度约 ' + Math.round(pos.coords.accuracy) + 'm · 坐标已校正';
+      btn.disabled = false; btn.textContent = '重新定位';
+      reverseGeo(wgs).then(function (d) {
+        if (!d) return;
+        var city = d.city || d.locality || d.principalSubdivision || '';
+        var district = d.locality || d.city || '';
+        var name = [city, district && district !== city ? district : ''].filter(Boolean).join(' · ');
+        if (name) {
+          $('#locName').textContent = name || '当前位置';
+          var key = Object.keys(CITIES).filter(function (c) { return city && city.indexOf(c) >= 0; })[0];
+          if (key && !state.keyword) {
+            state.city = CITIES[key]; state.cityName = key;
+            buildQuickLinks(); saveSoon();
+          }
+        }
+      });
+    }, function (err) {
+      btn.disabled = false; btn.textContent = '重新定位';
+      $('#locName').textContent = '定位失败';
+      $('#locSub').textContent = err.code === 1 ? '你没给定位权限，可以手动拖地图' : '信号不好，先拖地图吧';
+      showBanner('拿不到定位（' + (err.code === 1 ? '权限被拒绝' : err.message || '未知错误') +
+        '）。先用默认中心，你可以拖动地图或在地图上点选。', true);
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+  }
+
+  /* ---------------- 示例数据 ---------------- */
+  function loadSample() {
+    var c = map ? map.getCenter() : { lat: DEFAULT_CENTER[0], lng: DEFAULT_CENTER[1] };
+    var now = Date.now();
+    var j = function (i, scale) {
+      // 确定性散布，避免每次刷新乱跳
+      var a = (i * 137.508) * Math.PI / 180;
+      var r = (0.0016 + (i % 6) * 0.0017) * (scale || 1);
+      return [c.lat + Math.sin(a) * r, c.lng + Math.cos(a) * r * 1.15];
+    };
+    var raw = [
+      { t: '房东直租｜一室户 独立厨卫 近地铁', p: 4200, a: 32, r: 1, f: '3/6层', com: '愚园路小区', s: 'douban',
+        d: '房东本人出租，非中介。老小区，安静，地铁步行 6 分钟，适合一个人住。看房提前约，平时上班。', star: true,
+        acct: { name: '阿岚', posts7: 1, type: 'personal' },
+        metro: { name: '江苏路站', claimed: 450, text: '地铁步行 6 分钟', dist: 520 },
+        chk: { deposit: 1, utility: 1, owner: 1, repair: 1, noise: 1 } },
+      { t: '转租｜朝南主卧 合租 室友是女生', p: 2800, a: 18, r: 1, f: '5/6层', com: '新华路小区', s: 'douban',
+        d: '因工作调动转租，合同到明年 6 月。房子两室，另一个房间住一位女生。押一付三，可小刀。',
+        acct: { name: 'momo', posts7: 2, type: 'personal' },
+        metro: { name: '中山公园站', claimed: 600, text: '地铁 8 分钟', dist: 640 },
+        chk: { deposit: 1, nofake: 1, permit: 1 } },
+      { t: '2室1厅 精装全配 拎包入住 随时看房', p: 6800, a: 78, r: 2, f: '8/18层', com: '中山公园公寓', s: '58',
+        d: '钥匙在手，随时看房。精装全配，家电齐全，南北通透。还有多套同户型，加微信详聊。',
+        acct: { name: '沪上优选公寓', posts7: 14, type: 'rentonly' },
+        metro: { name: '中山公园站', claimed: 300, text: '地铁 4 分钟', dist: 340 } },
+      { t: '整租·两居室 南北通透 家电齐全', p: 5200, a: 70, r: 2, f: '12/24层', com: '中山公园公寓', s: 'beike',
+        d: '精装两房，家电齐全，拎包入住。看房方便，随时入住。图片真实，实景拍摄。',
+        acct: { name: '沪上优选公寓', posts7: 14, type: 'rentonly' },
+        metro: { name: '中山公园站', claimed: 500, text: '距地铁 500 米', dist: 560 } },
+      { t: '个人房源｜老小区两室 采光好 可短租', p: 5200, a: 62, r: 2, f: '2/6层', com: '定西路小区', s: 'xianyu',
+        d: '房东阿姨人很好，非中介。家具旧一点但都能用，阳台朝南。短租三个月起，价格可谈。',
+        acct: { name: '王阿姨', posts7: 1, type: 'personal' },
+        metro: { name: '江苏路站', claimed: 900, text: '步行 12 分钟', dist: 980 },
+        chk: { deposit: 1, owner: 1, utility: 1 } },
+      { t: '一室一厅 近商圈 免中介费', p: 3800, a: 40, r: 1, f: '6/7层', com: '江苏路小区', s: '58',
+        d: '免中介费！看房方便，钥匙在手。房子新装修，家电齐全，微信同号，随时联系。',
+        acct: { name: '公寓管家小李', posts7: 9, type: 'mixed' },
+        metro: { name: '江苏路站', claimed: 450, text: '地铁 6 分钟', dist: 760 } },
+      { t: '合租｜三室一厅 主卧带阳台 押一付一', p: 3300, a: 22, r: 1, f: '4/11层', com: '武夷路公寓', s: 'douban',
+        d: '现有两位室友，都是上班族。主卧带独立阳台，押一付一。希望作息规律、爱干净。',
+        acct: { name: '小周', posts7: 3, type: 'personal' },
+        chk: { deposit: 1, nofake: 1, noise: 1 } },
+      { t: '精品公寓 月付 无压力 拎包入住', p: 4500, a: 35, r: 1, f: '9/20层', com: '延安西路公寓', s: '58',
+        d: '本公司直营公寓，多套可选，随时看房。精装全配，月付无压力，欢迎咨询。',
+        acct: { name: '寓见公寓', posts7: 21, type: 'rentonly' } },
+      { t: '整租一居 近地铁 真实图片 实景拍摄', p: 4600, a: 45, r: 1, f: '3/8层', com: '番禺路小区', s: 'xianyu',
+        d: '真实房源，实景拍摄。一室一厅，采光不错，地铁 5 分钟。房东直租，中介勿扰。',
+        acct: { name: '林先生', posts7: 2, type: 'personal' },
+        metro: { name: '江苏路站', claimed: 375, text: '地铁 5 分钟', dist: 900 },
+        chk: { deposit: 1, owner: 1, nofake: 1, repair: 1 } },
+      { t: '三室两厅 家庭整租 长租优先', p: 8500, a: 110, r: 3, f: '7/18层', com: '虹桥花园', s: 'beike',
+        d: '三房两厅，适合一家人。家电齐全，南北通透，长租优先。看房方便，随时入住。',
+        acct: { name: '链家王经理', posts7: 6, type: 'rentonly' },
+        metro: { name: '虹桥路站', claimed: 700, text: '地铁 10 分钟', dist: 750 } },
+      { t: '急转｜工作调动 一室户 家具齐全', p: 3600, a: 38, r: 1, f: '2/5层', com: '镇宁路小区', s: 'douban',
+        d: '个人转租，工作调动急着走。家具齐全，可直接拎包住。合同还剩 8 个月，价格好商量。',
+        acct: { name: 'Kiki', posts7: 2, type: 'personal' },
+        chk: { deposit: 1, utility: 1 } },
+      { t: '超低价 一室 近地铁 仅此一套', p: 1900, a: 30, r: 1, f: '1/6层', com: '万航渡路小区', s: '58',
+        d: '超低价！仅此一套，先到先得。精装，家电齐全，随时看房。加微信发视频。',
+        acct: { name: '特价房专线', posts7: 11, type: 'rentonly' },
+        metro: { name: '江苏路站', claimed: 200, text: '地铁 2 分钟', dist: 1300 } }
+    ];
+
+    state.listings = raw.map(function (o, i) {
+      var pt = j(i);
+      var chk = {};
+      Object.keys(o.chk || {}).forEach(function (k) { chk[k] = true; });
+      var hist = [];
+      if (i === 2) hist = [{ p: 7200, t: now - 12 * 864e5 }, { p: 6900, t: now - 5 * 864e5 }, { p: 6800, t: now - 2 * 864e5 }];
+      if (i === 3) hist = [{ p: 5600, t: now - 9 * 864e5 }, { p: 5200, t: now - 3 * 864e5 }];
+      if (i === 10) hist = [{ p: 3900, t: now - 6 * 864e5 }, { p: 3600, t: now - 1 * 864e5 }];
+      var visit = {};
+      if (i === 0) visit = { visitStatus: 'scheduled', visitAt: localInput(now + 20 * 3600e3), visitNote: '问清楚能否办居住证、押金退还条件。' };
+      if (i === 1) visit = { visitStatus: 'contacted', visitNote: '已发消息，等房东回时间。' };
+      if (i === 8) visit = { visitStatus: 'viewed', visitAt: localInput(now - 2 * 864e5), visitNote: '采光一般，楼下有点吵。' };
+      if (i === 11) visit = { visitStatus: 'dropped', visitNote: '价格明显低于同小区，要求先付意向金，放弃。' };
+      return Object.assign({
+        id: uid() + i, title: o.t, price: o.p, area: o.a, rooms: o.r, floor: o.f, community: o.com,
+        source: o.s, url: '', phone: '', desc: o.d, note: '', lat: pt[0], lng: pt[1],
+        createdAt: now - (raw.length - i) * 3600e3, starred: !!o.star, sample: true,
+        account: o.acct || { name: '', url: '', posts7: null, type: 'unknown' },
+        metroName: o.metro ? o.metro.name : '',
+        metroDist: o.metro ? o.metro.dist : null,
+        metroClaimed: o.metro ? o.metro.claimed : null,
+        metroClaimText: o.metro ? o.metro.text : '',
+        amenities: [], checks: chk, bait: false,
+        priceHistory: hist.length ? hist : [{ p: o.p, t: now - 4 * 864e5 }]
+      }, visit);
+    });
+    recompute(); render(); save();
+    fitListings();
+    showBanner('这些是<b>虚构的示例房源</b>，只用来看热力图和过滤效果。真实房源请自己粘贴添加，添加后可以「清空」。', true);
+    toast('已载入 ' + raw.length + ' 条示例数据（虚构）');
+  }
+
+  function fitListings() {
+    var pts = state.listings.filter(function (l) { return l.lat != null && l.lng != null; })
+      .map(function (l) { return [l.lat, l.lng]; });
+    if (pts.length && map) {
+      map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 16, animate: true });
+    }
+  }
+
+  /* ---------------- 导入导出 / 清空 ---------------- */
+  $('#btnExport').addEventListener('click', function () {
+    if (!state.listings.length) { toast('还没有数据可导出'); return; }
+    var blob = new Blob([JSON.stringify({
+      version: 3, exportedAt: new Date().toISOString(),
+      listings: state.listings, hoods: state.hoods, budget: state.budget
+    }, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'findhouse-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  });
+
+  $('#btnImport').addEventListener('click', function () { $('#fileImport').click(); });
+  $('#fileImport').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var d = JSON.parse(reader.result);
+        var arr = Array.isArray(d) ? d : d.listings;
+        if (!Array.isArray(arr)) throw new Error('格式不对');
+        var existing = new Set(state.listings.map(function (l) { return l.id; }));
+        var added = 0;
+        arr.forEach(function (l) {
+          if (!l || !l.title) return;
+          if (l.id && existing.has(l.id)) return;
+          l.id = l.id || uid();
+          l.createdAt = l.createdAt || Date.now();
+          l.source = l.source || 'other';
+          ensureListingMeta(l);
+          state.listings.push(l);
+          added++;
+        });
+        var budgetApplied = false;
+        if (d.budget && typeof d.budget === 'object' && !Array.isArray(d.budget)) {
+          state.budget = normalizeBudget(d.budget);
+          budgetApplied = true;
+        }
+        var hoodAdded = 0;
+        if (d.hoods && typeof d.hoods === 'object' && !Array.isArray(d.hoods)) {
+          Object.keys(d.hoods).forEach(function (k) {
+            var h = d.hoods[k] || {};
+            state.hoods[k] = {
+              good: Array.isArray(h.good) ? h.good : [],
+              risk: Array.isArray(h.risk) ? h.risk : [],
+              note: String(h.note || ''),
+              updatedAt: Number(h.updatedAt) || Date.now()
+            };
+            hoodAdded++;
+          });
+        }
+        recompute(); render(); save();
+        toast('导入 ' + added + ' 条房源' + (hoodAdded ? ' · ' + hoodAdded + ' 个小区尽调' : '') +
+          (budgetApplied ? ' · 预算口径' : ''));
+      } catch (err) {
+        toast('导入失败：' + err.message);
+      }
+    };
+    reader.readAsText(f);
+    e.target.value = '';
+  });
+
+  $('#btnClear').addEventListener('click', function () {
+    if (!state.listings.length) { toast('已经是空的了'); return; }
+    if (!confirm('清空全部 ' + state.listings.length + ' 条房源？建议先导出备份。')) return;
+    state.listings = []; render(); save();
+    toast('已清空');
+  });
+
+  $('#btnSample').addEventListener('click', function () {
+    var real = state.listings.filter(function (l) { return !l.sample; });
+    if (real.length) {
+      if (!confirm('载入示例会替换当前数据（你有 ' + real.length + ' 条自己添加的房源，建议先导出）。继续？')) return;
+    }
+    loadSample();
+  });
+
+  /* ---------------- 一句话 / 尽调 / 行情 / 报告 ---------------- */
+  $('#btnAsk').addEventListener('click', openAsk);
+  $('#btnAskClose').addEventListener('click', closeAsk);
+  $('#btnAskApply').addEventListener('click', applyAsk);
+  $('#askText').addEventListener('input', debounce(function () {
+    var v = $('#askText').value.trim();
+    $('#askPreview').innerHTML = v
+      ? askPreviewHtml(parseAsk(v))
+      : '<span class="ask-hint">写成一句话后，这里会显示识别到的条件和匹配条数。</span>';
+  }, 180));
+  $('#askDialog').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-ask]');
+    if (!b) return;
+    $('#askText').value = b.getAttribute('data-ask');
+    $('#askPreview').innerHTML = askPreviewHtml(parseAsk($('#askText').value));
+    $('#askText').focus();
+  });
+
+  $('#needBar').addEventListener('click', function (e) {
+    var f = state.filters;
+    if (e.target.closest('#btnClearNeeds')) {
+      f.min = ''; f.max = ''; f.rooms = 0; f.needs = []; f.layout = ''; f.nearMetro = false;
+      syncFilterUI(); render();
+      return;
+    }
+    var b = e.target.closest('[data-need]');
+    if (!b) return;
+    var k = b.getAttribute('data-need');
+    if (k === 'layout') f.layout = '';
+    else if (k === 'near') f.nearMetro = false;
+    else if (k === 'budget') { f.min = ''; f.max = ''; }
+    else if (k === 'rooms') f.rooms = 0;
+    else if (k.indexOf('need:') === 0) {
+      f.needs = f.needs.filter(function (x) { return x !== k.slice(5); });
+    }
+    syncFilterUI(); render();
+  });
+
+  $('#btnHoodClose').addEventListener('click', closeHood);
+  $('#btnHoodSave').addEventListener('click', saveHood);
+  ['#hoodGood', '#hoodRisk'].forEach(function (sel) {
+    $(sel).addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-tag]');
+      if (b) b.classList.toggle('on');
+    });
+  });
+
+  $('#btnMarket').addEventListener('click', openMarket);
+  $('#btnMarketClose').addEventListener('click', closeMarket);
+  $('#btnReport').addEventListener('click', exportReport);
+  $('#btnReportFromMarket').addEventListener('click', exportReport);
+  $('#marketChart').addEventListener('click', function (e) {
+    var c = e.target.closest('[data-mk]');
+    if (!c) return;
+    var parts = c.getAttribute('data-mk').split('-');
+    var lo = Number(parts[0]), hi = Number(parts[1]);
+    if (!isFinite(lo) || !isFinite(hi)) return;
+    state.filters.min = String(lo);
+    state.filters.max = String(hi);
+    closeMarket();
+    syncFilterUI(); render();
+    toast('已筛选 ¥' + money(lo) + '–' + money(hi));
+  });
+  $('#marketTable').addEventListener('click', function (e) {
+    var r = e.target.closest('[data-com]');
+    if (!r) return;
+    var com = r.getAttribute('data-com');
+    if (!com) return;
+    state.filters.q = com;
+    closeMarket();
+    syncFilterUI(); render();
+    toast('已按小区「' + com + '」筛选');
+  });
+
+  $('#btnPlan').addEventListener('click', openPlan);
+  $('#btnPlanClose').addEventListener('click', closePlan);
+  $('#btnPlanAdd').addEventListener('click', function () {
+    closePlan();
+    openDrawer(null);
+  });
+  $('#planList').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-plan]');
+    if (!b) return;
+    var row = b.closest('.plan-row');
+    var id = row && row.getAttribute('data-id');
+    var l = state.listings.filter(function (x) { return x.id === id; })[0];
+    if (!l) return;
+    var act = b.getAttribute('data-plan');
+    if (act === 'focus') { closePlan(); focusListing(id, true); return; }
+    if (act === 'edit') { closePlan(); openDrawer(l); return; }
+    if (act === 'viewed') { l.visitStatus = 'viewed'; save(); render(); renderPlan(); toast('已标记看过'); return; }
+    if (act === 'clear') {
+      if (!confirm('清除这条房源的看房进度？')) return;
+      l.visitStatus = ''; l.visitAt = ''; l.visitNote = '';
+      save(); render(); renderPlan();
+    }
+  });
+  $('#visitStatus').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-v]');
+    if (!b) return;
+    state.draft = state.draft || {};
+    state.draft.visitStatus = b.getAttribute('data-v');
+    renderVisitStatus(state.draft);
+  });
+  $('#dPrice').addEventListener('input', function () { renderPriceHist(state.draft); });
+
+  $('#btnBudgetDrawer').addEventListener('click', function () {
+    openBudget(Number($('#dPrice').value) || 0);
+  });
+  $('#btnBudgetFromMarket').addEventListener('click', function () { openBudget(); });
+  $('#btnBudgetClose').addEventListener('click', closeBudget);
+  $('#btnBudgetSave').addEventListener('click', function () {
+    state.budget = readBudgetForm();
+    save();
+    closeBudget();
+    toast('预算口径已保存');
+  });
+  ['#bRent', '#bDeposit', '#bPay', '#bAgency', '#bUtil', '#bNet', '#bMove'].forEach(function (sel) {
+    $(sel).addEventListener('input', renderBudget);
+  });
+  $$('.budget-presets button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var p = b.getAttribute('data-preset').split(',').map(Number);
+      $('#bDeposit').value = p[0];
+      $('#bPay').value = p[1];
+      $('#bAgency').value = p[2];
+      $$('.budget-presets button').forEach(function (x) { x.classList.toggle('on', x === b); });
+      renderBudget();
+    });
+  });
+
+  /* ---------------- 设置 ---------------- */
+  function fillCities() {
+    $('#sCity').innerHTML = Object.keys(CITIES).map(function (name) {
+      return '<option value="' + CITIES[name] + '">' + name + '</option>';
+    }).join('');
+  }
+  function syncScrim() {
+    scrim.classList.toggle('on', $$('.dialog.open').length > 0);
+  }
+  function openDialog() {
+    $('#sCity').value = state.city || 'sh';
+    $('#sKeyword').value = state.keyword || '';
+    $('#sKey').value = state.amapKey || '';
+    $('#dialog').classList.add('open');
+    $('#dialog').setAttribute('aria-hidden', 'false');
+    syncScrim();
+  }
+  function closeDialog() {
+    if ($('#dialog').contains(document.activeElement)) document.activeElement.blur();
+    $('#dialog').classList.remove('open');
+    $('#dialog').setAttribute('aria-hidden', 'true');
+    syncScrim();
+  }
+  $('#btnSettings').addEventListener('click', openDialog);
+  $('#btnDialogClose').addEventListener('click', closeDialog);
+  scrim.addEventListener('click', function () {
+    closeDialog(); closeCompare(); closeAsk(); closeHood(); closeMarket(); closePlan(); closeBudget();
+  });
+  $('#btnSaveSettings').addEventListener('click', function () {
+    var pinyin = $('#sCity').value || 'sh';
+    var name = Object.keys(CITIES).filter(function (k) { return CITIES[k] === pinyin; })[0] || '上海';
+    var cityChanged = name !== state.cityName;
+    state.city = pinyin; state.cityName = name;
+    state.keyword = $('#sKeyword').value.trim();
+    state.amapKey = $('#sKey').value.trim();
+    buildQuickLinks(); save(); closeDialog();
+    toast('设置已保存');
+    if (cityChanged) {
+      geocode(name).then(function (pt) {
+        map.setView([pt.lat, pt.lng], 12);
+        toast('地图已切到' + name + '，可拖动或点「定位」回到当前位置');
+      }).catch(function () { /* 定位失败就保持原视图 */ });
+    }
+  });
+
+  /* ---------------- 提示 ---------------- */
+  var toastTimer;
+  function toast(msg) {
+    var el = $('#toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2800);
+  }
+  function placeAlert() {
+    var el = $('#alertStrip'), b = $('#banner');
+    if (!el || el.hidden) return;
+    // 移动端顶部空间窄：把对比提醒压到横幅下面，避免被盖住
+    if (window.innerWidth <= 900 && !b.hidden) {
+      el.style.top = Math.round(b.offsetTop + b.offsetHeight + 8) + 'px';
+    } else {
+      el.style.top = '';
+    }
+  }
+  function showBanner(html, dismissible) {
+    var b = $('#banner');
+    $('#bannerText').innerHTML = html;
+    b.hidden = false;
+    $('#bannerClose').style.display = dismissible === false ? 'none' : '';
+    requestAnimationFrame(placeAlert);
+  }
+  $('#bannerClose').addEventListener('click', function () {
+    $('#banner').hidden = true;
+    placeAlert();
+  });
+  window.addEventListener('resize', placeAlert);
+
+  /* ---------------- 启动 ---------------- */
+  function init() {
+    fillSourceOptions();
+    fillCities();
+    load();
+    initMap();
+    bindFilters();
+    buildQuickLinks();
+
+    if (state.home) {
+      setHome(state.home.lat, state.home.lng, state.home.acc, false);
+      $('#locName').textContent = '上次的定位';
+      $('#locSub').textContent = '点「重新定位」刷新，或拖动地图';
+      map.setView([state.home.lat, state.home.lng], 14);
+    }
+
+    recompute();
+    render();
+
+    if (state.listings.length && !hasFit) {
+      hasFit = true;
+      setTimeout(fitListings, 300);
+    } else if (!state.listings.length) {
+      // 首次进入：空状态，地图先落到默认中心
+      $('#locSub').textContent = '点「定位」获取当前位置';
+    }
+
+    $('#btnLocate').addEventListener('click', locate);
+
+    if (location.protocol === 'file:') {
+      showBanner('当前是直接双击打开的本地文件，浏览器会禁用定位。在终端运行 <code>cd 到本目录 && python3 -m http.server 8765</code>，然后访问 <code>http://localhost:8765</code>。', true);
+    } else {
+      setTimeout(locate, 400);
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
